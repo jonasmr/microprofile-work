@@ -353,7 +353,7 @@ let FilterInputSearchActive2 = 0;
 const FLAGS_SECTION = 1;
 
 
-
+let LastDropTarget = null;
 
 var FilterInputGroupString = null;
 var FilterInputTimerString = null;
@@ -8464,7 +8464,6 @@ function ComparePrompt()
 }
 
 
-var LastDropTarget = null;
 // magic from stack-overflow somewhere..
 function WindowDragEnter(e)
 {

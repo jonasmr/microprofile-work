@@ -36,6 +36,7 @@ ul li ul{ display:block;float:none;width:100%;}
 ul li ul li{ display:block;float:none;width:100%;}
 li li a{ display:block;float:none;width:100%;text-align:left;}
 #nav li:hover div {margin-left:0;}
+.dropzone {display:flex;justify-content:center;align-items:center;font-size:50px;position: fixed; top: 0; left: 0; z-index: 9999999999; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);transition: visibility 175ms, opacity 175ms;}
 .help {position:absolute;z-index:5;text-align:left;padding:2px;margin-left:-999em;background-color: #313131;width:300px;}
 .helpstart {position:absolute;z-index:5;text-align:left;padding:2px;background-color: #313131;width:300px;display:none}
 .root {z-index:1;position:absolute;top:0px;left:0px;}
@@ -44,6 +45,7 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 </style>
 </head>
 <body style="">
+<div style="visibility:hidden; opacity:0" class="dropzone" ondrop="DropHandler(event);" ondragover="DragOverHandler(event);">drop .csv files to view CSV data</div>
 <div class="filterinputsearchdiv" id="FilterInputDiv">Filter<br><input type="text" id="FilterInput" class="filterinputsearch"></div>
 <div class="helpstart" id="helpwindow" style="left:20px;top:20px">
 History View:<br>
@@ -195,6 +197,9 @@ var CaptureDelayTweak = -1;
 var CaptureTriggerTime = null;
 var CaptureTriggerTimeType = 0;
 var CaptureTriggerDelta = 0;
+
+let LastDropTarget = null;
+
 
 
 var ProfileData = {};
@@ -7499,11 +7504,211 @@ function WriteCookie()
 	document.cookie = cookie;
 }
 
+let CSVSets = {};
+let CSVIndex = 0;
+
+function CreateCSVSet()
+{
+	let Index = ++CSVIndex;
+	let Name = "Drop_" + Index;
+	let Set = {};
+	Set.Name = Name;
+	Set.Files = {};
+	Set.PendingCount = 0;
+	Set.FinishedCount = 0;
+	return Set;
+}
+function ParseCSVCheckFinished(Name)
+{
+	let Set = CSVSets[Name];
+	console.log("Finished parsing ", Set.FinishedCount, ":", Set.PendingCount);
+	if(Set.FinishedCount == Set.PendingCount)
+	{
+		//aggr here
+		if(Set.FinishedCount == 0)
+		{
+			console.error("No CSV files were parsable");
+			CSVSets[Name] = null;
+		}
+	}
+}
+function ParseCSVLine(Line)
+{
+	let Pos = 0;
+	let Start = 0;
+	let Len = Line.length;
+	let InBrackets = 0;
+	let Out = new Array();
+	let BracketStart = -1;
+	let BracketEnd = -1;
+	let push = function()
+	{
+		if(BracketStart >= 0)
+		{
+			console.assert(BracketEnd >= 0);
+			Out.push(Line.slice(BracketStart+1, BracketEnd));
+		}
+		else
+		{
+			Out.push(Line.slice(Start, Pos).trim());
+
+		}
+		Start = Pos+1;
+		InBrackets = 0;
+		BracketStart = -1;
+		BracketEnd = -1;
+	};
+	while(Pos != Len)
+	{
+		let Char = Line[Pos];
+		if(InBrackets)
+		{
+			if(Char == "\"")
+			{
+				BracketEnd = Pos;
+				InBrackets = 0;
+			}
+		}
+		else
+		{
+			if(Char == "\"")
+			{
+				BracketStart = Pos;
+				InBrackets = 1;
+			}
+			else if(Char == ",")
+			{
+				push();
+			}
+		}
+		Pos++;
+	}
+	push();
+	return Out;
+
+}
+
+function ParseCSVFile(Set, Result, Name)
+{
+	let Lines = Result.split(/\r?\n/);
+	let Headers, Data;
+	let Columns = 0;
+	for(let i = 0; i < Lines.length; ++i)
+	{
+		let LineData = ParseCSVLine(Lines[i]);
+		if(i == 0)
+		{
+			Headers = LineData;
+			Columns = Headers.length;
+			Data = new Array(Columns);
+			for(let j = 0; j < Columns; ++j)
+			{
+				Data[j] = new Array();
+			}
+		}
+		else
+		{
+			if(LineData.length != Columns)
+			{
+				console.error("Failed to parse csv file ", Name);
+				Set.PendingCount--;
+				Set.FinishedCount--;
+				ParseCSVCheckFinished(Set.Name);
+				debugger;
+
+			}
+			for(let j = 0; j < Columns; ++j)
+			{
+				Data[j].push(parseFloat(LineData[j]));
+			}
+		}
+	}
+	Set.FinishedCount++;
+	ParseCSVCheckFinished(Set.Name);
+
+}
+
+function ReadCSVFile(Set, File)
+{
+	if(!File)
+		return;
+	let Reader = new FileReader();
+	Reader.onload = function(e) {
+		ParseCSVFile(Set, e.target.result, File.name);
+	};
+	Reader.onprogress = function(e)
+	{
+		var m = e.loaded + ":" + e.total + " :: " + e.lengthComputable;
+		console.log(m);
+	};
+	Set.PendingCount++;
+	Reader.readAsText(File);
+
+}
+
+// magic from stack-overflow somewhere..
+function WindowDragEnter(e)
+{
+    LastDropTarget = e.target;
+    document.querySelector(".dropzone").style.visibility = "";
+    document.querySelector(".dropzone").style.opacity = 1;
+};
+
+function WindowDragLeave(e)
+{
+    if(e.target === LastDropTarget || e.target === document)
+    {
+        document.querySelector(".dropzone").style.visibility = "hidden";
+        document.querySelector(".dropzone").style.opacity = 0;
+    }
+};
+function DropHandler(ev)
+{
+	document.querySelector(".dropzone").style.visibility = "hidden";
+	document.querySelector(".dropzone").style.opacity = 0;
+	LastDropTarget = null;
+
+	let Set = CreateCSVSet();
+	Set.PendingCount++;
+	CSVSets[Set.Name] = Set;
+	for(let i = 0; i < ev.dataTransfer.files.length; ++i)
+	{
+		let File = ev.dataTransfer.files[i];
+		let Name = File.name;
+		let ExtMatch = Name.match(/\.[0-9a-zA-Z]+$/);
+		let Ext = ExtMatch ? ExtMatch[0] : "";
+		if(Ext.toLowerCase() == ".csv")
+		{
+			ReadCSVFile(Set, File);
+		}
+		else
+		{
+			console.log("Not a .csv file!\n" + Name);
+		}
+	}
+	if(0 == Set.PendingCount)
+	{
+		window.alert("No dropped CSV files. Please drop one or more csv files to use csv viewer");
+	}
+	Set.FinishedCount++;
+	ParseCSVCheckFinished(Set.Name);
+  	ev.preventDefault();
+}
+
+function DragOverHandler(ev)
+{
+  ev.preventDefault();
+}
+
+
+
 ReadCookie();
 ParseUrl();
 ResizeCanvas();
 SetupEvents();
 InitMenu();
+window.addEventListener("dragenter", WindowDragEnter);
+window.addEventListener("dragleave", WindowDragLeave);
 setInterval(Connect, 100);
 RequestDraw();
 
