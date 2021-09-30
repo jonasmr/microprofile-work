@@ -7506,7 +7506,18 @@ function WriteCookie()
 
 let CSVSets = {};
 let CSVIndex = 0;
+function CreateCSVSetFile(Set, Filename)
+{
+	let File = {};
+	File.Name = Filename;
+	File.DataSorted = [];
+	File.Data = [];
+	File.ColumnToIndex = {};
+	File.ColumnsSorted = {};
+	File.Columns = {};
+	return File;
 
+}
 function CreateCSVSet()
 {
 	let Index = ++CSVIndex;
@@ -7514,6 +7525,9 @@ function CreateCSVSet()
 	let Set = {};
 	Set.Name = Name;
 	Set.Files = {};
+	Set.Columns = {};
+	Set.ColumnNames = {};
+	Set.ColumnIndex = 0;
 	Set.PendingCount = 0;
 	Set.FinishedCount = 0;
 	return Set;
@@ -7524,11 +7538,66 @@ function ParseCSVCheckFinished(Name)
 	console.log("Finished parsing ", Set.FinishedCount, ":", Set.PendingCount);
 	if(Set.FinishedCount == Set.PendingCount)
 	{
-		//aggr here
 		if(Set.FinishedCount == 0)
 		{
 			console.error("No CSV files were parsable");
 			CSVSets[Name] = null;
+		}
+		else
+		{
+			for(let CName in Set.ColumnNames)
+			{
+				let aggr = {};
+				let MaxCount = 0;
+				console.log("aggr for ", CName);
+				for(let F in Set.Files)
+				{
+					let File = Set.Files[F];
+					if(File.Columns[CName])
+						MaxCount = Math.max(MaxCount, File.Columns[CName].length);
+				}
+				let count = new Array(MaxCount);
+				let sum = new Array(MaxCount);
+				let min = new Array(MaxCount);
+				let max = new Array(MaxCount);
+				let avg = new Array(MaxCount);
+				for(let i = 0; i < MaxCount; ++i)
+				{
+					count[i] = 0;
+					sum[i] = 0;
+					min[i] = 1e28;
+					max[i] = -1e28;
+				}
+				for(let F in Set.Files)
+				{
+					let File = Set.Files[F];
+					if(File.Columns[CName])
+					{
+						let c = File.Columns[CName];
+						for(let i = 0; i < c.length; ++i)
+						{
+							count[i]++;
+							sum[i] += c[i];
+							min[i] = Math.min(c[i], min[i]);
+							max[i] = Math.max(c[i], max[i]);
+
+						}
+					}
+				}
+				for(let i = 0; i < MaxCount; ++i)
+				{
+					if(count[i])
+					{
+						avg[i] = sum[i] / count[i];
+						console.log(".. ", avg[i], " min ", min[i]);
+					}
+					else
+					{
+						min[i] = 0;
+						max[i] = 0;
+					}
+				}
+			}
 		}
 	}
 }
@@ -7590,8 +7659,9 @@ function ParseCSVLine(Line)
 
 function ParseCSVFile(Set, Result, Name)
 {
+	let File = CreateCSVSetFile(Set, Name);
 	let Lines = Result.split(/\r?\n/);
-	let Headers, Data;
+	let Headers, Data, DataSorted;
 	let Columns = 0;
 	for(let i = 0; i < Lines.length; ++i)
 	{
@@ -7600,10 +7670,21 @@ function ParseCSVFile(Set, Result, Name)
 		{
 			Headers = LineData;
 			Columns = Headers.length;
+
 			Data = new Array(Columns);
+			DataSorted = new Array(Columns);
+			File.Data = Data;
+			File.DataSorted = DataSorted;
 			for(let j = 0; j < Columns; ++j)
 			{
 				Data[j] = new Array();
+				DataSorted[j] = new Array();
+
+				let ColumnName = Headers[j];
+				File.ColumnToIndex[Headers[j]] = j;
+				File.Columns[ColumnName] = Data[j];
+				File.ColumnsSorted[ColumnName] = DataSorted[j];
+				Set.ColumnNames[ColumnName] = 1;
 			}
 		}
 		else
@@ -7620,9 +7701,16 @@ function ParseCSVFile(Set, Result, Name)
 			for(let j = 0; j < Columns; ++j)
 			{
 				Data[j].push(parseFloat(LineData[j]));
+				DataSorted[j].push(parseFloat(LineData[j]));
 			}
 		}
 	}
+	for(let j = 0; j < Columns; ++j)
+	{
+		DataSorted[j].sort();
+
+	}
+	Set.Files[Name] = File;
 	Set.FinishedCount++;
 	ParseCSVCheckFinished(Set.Name);
 
