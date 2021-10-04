@@ -345,6 +345,18 @@ var HelpFade;
 // CSV Data
 let CSVSets = {};
 let CSVIndex = 0;
+let CSVMenuItems = [];
+
+function AddCSVMenu(Set, Name, Type, Data)
+{
+	let Item = {};
+	Item.Set = Set;
+	Item.Name = Name;
+	Item.Type = Type;
+	Item.Data = Data;
+
+	CSVMenuItems.push(Item);
+}
 
 
 TimerArray.push(Empty); // 0 is root of tree
@@ -1660,6 +1672,18 @@ function DrawGraphCSV(View, LocalMouseX, LocalMouseY, SubIndex)
 
 
 	var fWidth = w / FRAME_COUNT;
+
+
+	let Params = CreateDrawGraph2Parameters();
+	let Mouse = {};
+	Mouse.X = LocalMouseX;
+	Mouse.Y = LocalMouseY;
+	Params.Rect = WindowRect(0, 0, w, h);
+
+	let Data = CSVMenuItems[0].Data;
+
+	DrawGraph2(context, Params, [Data], Mouse);
+
 
 
 
@@ -7745,7 +7769,7 @@ function DrawGraph2(context, Parameters, data, Mouse)
 		for(let j in d.Samples)
 		{
 			MaxSample = Math.max(MaxSample, d.Samples[j]);
-			MinSample = Math.max(MinSample, d.Samples[j]);
+			MinSample = Math.min(MinSample, d.Samples[j]);
 		}
 	}
 	if(0 == MaxLen)
@@ -8007,6 +8031,11 @@ function ParseCSVCheckFinished(Name)
 				Set.GraphDataMin[CName] = CreateGraph2Data(min, CName, color);
 				Set.GraphDataMax[CName] = CreateGraph2Data(max, CName, color);
 				Set.GraphDataAvg[CName] = CreateGraph2Data(avg, CName, color);
+
+				AddCSVMenu(Name, CName, "Min", Set.GraphDataMin[CName]);
+				AddCSVMenu(Name, CName, "Max", Set.GraphDataMax[CName]);
+				AddCSVMenu(Name, CName, "Avg", Set.GraphDataAvg[CName]);
+
 			}
 
 			ActivateView(VIEW_CSV);
@@ -8103,12 +8132,8 @@ function ParseCSVFile(Set, Result, Name)
 		{
 			if(LineData.length != Columns)
 			{
-				console.error("Failed to parse csv file ", Name);
-				Set.PendingCount--;
-				Set.FinishedCount--;
-				ParseCSVCheckFinished(Set.Name);
-				debugger;
-
+				console.log("Skipping line '" + Lines[i] + "'");
+				continue;
 			}
 			for(let j = 0; j < Columns; ++j)
 			{
