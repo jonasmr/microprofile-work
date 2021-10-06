@@ -144,6 +144,7 @@ var MouseDragActiveXEnd = -1;
 var MouseInCaptureButton = 0;
 
 var ToolTipCallback = null;
+let ToolTipImmediate = null;
 
 var DPR = 0;
 var C_HUGE = 1e10;
@@ -346,6 +347,25 @@ var HelpFade;
 let CSVSets = {};
 let CSVIndex = 0;
 let CSVMenuItems = [];
+
+let MAX_GRAPHS = 5;
+let Graphs = new Array(MAX_GRAPHS);
+let NumGraphs = 5;
+let MouseInGraphButton = 0;
+let GraphButtonIndex = -1;
+let GraphButtonX = 0;
+let GraphButtonY = 0;
+for(let i = 0; i < MAX_GRAPHS; ++i)
+{
+	Graphs[i] = {};
+	Graphs[i][1 + i * 3] = 1;
+}
+
+
+
+
+
+
 
 function AddCSVMenu(Set, Name, Type, Data)
 {
@@ -1667,11 +1687,9 @@ function DrawGraphCSV(View, LocalMouseX, LocalMouseY, SubIndex)
 
 	var h = View.h;
 	var w = View.w;
-	var fHeightScale = h / ReferenceGraph;
-	var MouseDragging = 0;
-
-
-	var fWidth = w / FRAME_COUNT;
+	// var fHeightScale = h / ReferenceGraph;
+	// var MouseDragging = 0;
+	// var fWidth = w / FRAME_COUNT;
 
 
 	let Params = CreateDrawGraph2Parameters();
@@ -1680,169 +1698,26 @@ function DrawGraphCSV(View, LocalMouseX, LocalMouseY, SubIndex)
 	Mouse.Y = LocalMouseY;
 	Params.Rect = WindowRect(0, 0, w, h);
 
-	let Data = CSVMenuItems[0].Data;
-
-	DrawGraph2(context, Params, [Data], Mouse);
 
 
+	let GraphHeight = h / NumGraphs;
+	let y = 0;
+	for(let i = 0; i < NumGraphs; ++i)
+	{
+		Params.Rect = WindowRect(0, y, w, GraphHeight);
+		let Data = [];
+		let GraphIndices = Graphs[i];
+		for(let Index in GraphIndices)
+		{
+			if(GraphIndices[Index])
+			{
+				Data.push(CSVMenuItems[Index].Data);
+			}
+		}
+		DrawGraph2(context, Params, Data, Mouse);
 
-
-
-// function CreateDrawGraph2Parameters()
-// {
-// 	let P = {};
-// 	P.Rect = WindowRect(0, 0, 1, 1);
-// 	P.RangeMin = 0.0;
-// 	P.RangeMax = 0.0;
-// 	P.Mark = [16.66, 33.33];
-// 	P.Ext = "ms";
-// 	P.Border = 2;
-// 	P.Frame = 1;
-// 	return P;
-// }
-
-
-
-
-
-	// var HighlightFrame = -1;
-	// var GraphKey = null;
-	// var GraphBest = 0;
-	// var MouseTime = ReferenceGraph * (1-(LocalMouseY / h));
-
-	// if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1)
-	// {
-	// 	var index = Math.floor(FRAME_COUNT * LocalMouseX / w);
-	// 	HighlightFrame = index;
-	// 	for(var key in TimerMap)
-	// 	{
-	// 		var idx = GetTimer(key);
-	// 		var T = TimerArray[idx];
-	// 		var TimerState = TimerMap[key];
-	// 		var Time = TimerState.Time;
-	// 		if(Time[index] >= MouseTime && (GraphBest == 0 || Time[index] <= GraphBest))
-	// 		{
-	// 			GraphKey = key;
-	// 			GraphBest = Time[index];
-	// 		}
-	// 	}
-	// 	ToolTipCallback = function(canvas, x, y)
-	// 	{
-	// 		var TimerMap = FrameData.TimerMap;
-	// 		var context = canvas.getContext('2d');
-	// 		context.font = Font;
-	// 		var XPos = x - 20;
-	// 		for(var key in TimerMap)
-	// 		{
-	// 			var idx = GetTimer(key);
-	// 			var T = TimerArray[idx];
-	// 			var TimerState = TimerMap[key];
-	// 			var Time = TimerState.Time;
-	// 			if(TimerState.tooltipysoft)
-	// 			{
-	// 				var RATE = 0.05;
-	// 				if(Math.abs(TimerState.tooltipysoft - TimerState.tooltipy) > 6)
-	// 				{
-	// 					TimerState.tooltipysoft = TimerState.tooltipy * RATE + TimerState.tooltipysoft * (1-RATE);
-	// 				}
-	// 			}
-	// 			else
-	// 			{
-	// 				TimerState.tooltipysoft = TimerState.tooltipy;
-	// 			}
-	// 			var Y = TimerState.tooltipysoft;
-	// 			var str = '' + FormatTime(Time[index]) + 'ms';
-	// 			var w = context.measureText(str, XPos, Y).width;
-	// 			var X = Math.max(0, XPos - w);
-	// 			context.fillStyle = 'black';
-	// 			context.fillRect(X - 1, Y-1 , w+2, BoxHeight+2);
-	// 			context.fillStyle = 'white';
-	// 			context.textAlign = 'right';
-	// 			context.fillText(str, X + w, Y+BoxHeight-2);
-
-	// 		}
-	// 		context.textAlign = 'left';
-	// 	}
-	// }
-	// var NumGraphs = 0;
-	// for(var key in TimerMap)
-	// {
-	// 	if(!IsGroup(key))
-	// 	{
-	// 		NumGraphs++;
-	// 	}
-	// }
-	// if(NumGraphs)
-	// {
-	// 	var hstart = 0;
-	// 	var gh = h / NumGraphs;
-	// 	var Keys = [];
-	// 	var cidx = 1;
-	// 	for(var key in TimerMap)
-	// 	{
-	// 		var idx = GetTimer(key);
-	// 		var TimerState = TimerMap[key];
-	// 		if(!IsGroup(key))
-	// 		{
-	// 			let SubGraphSettings = GetSubGraphSettings(key);
-	// 			var Reference = GetSubGraphReferenceTime(SubGraphSettings, TimerState);
-	// 			var fHeightScale2 = gh / Reference;
-
-	// 			var Time = TimerState.Time;
-	// 			var color = TimerArray[idx].color;
-	// 			var X = w - Time.length*fWidth;
-	// 			var Y = hstart + gh;
-	// 			var YStart = Y;
-	// 			context.globalAlpha = 1;
-	// 			context.fillStyle = nBackColorsDark[cidx];
-	// 			cidx = 1-cidx;
-	// 			context.fillRect(0, hstart, w, gh);
-	// 			context.strokeStyle = color;
-	// 			context.fillStyle = color;
-	// 			context.beginPath();
-	// 			context.moveTo(X,Y);
-	// 			for(var i = 0; i < Time.length; ++i)
-	// 			{
-	// 				Y = Math.max(YStart - Time[i] * fHeightScale2, hstart);
-	// 				context.lineTo(X, Y);
-	// 				X += fWidth;
-
-	// 			}
-	// 			context.stroke();
-	// 			context.lineTo(X, YStart);
-	// 			context.globalAlpha = GRAPH_ALPHA;
-	// 			context.fill();
-
-
-	// 			context.globalAlpha = 1;
-	// 			context.fillStyle = 'wheat';
-	// 			context.textAlign='right';
-	// 			context.fillText(FormatTime(Reference) + 'ms', nWidth, hstart + FontHeight);
-	// 			context.textAlign='left';
-	// 			context.fillText(TimerArray[idx].name, 15, hstart + FontHeight);
-
-	// 			if(HighlightFrame >= 0)
-	// 			{
-	// 				var X = w - Time.length * fWidth + fWidth * HighlightFrame;
-	// 				var Y = YStart - Math.min(Time[HighlightFrame], Reference) * fHeightScale2;
-	// 				context.strokeStyle = color;
-	// 				context.beginPath();
-	// 				var CrossX = X;
-	// 				var CrossY = Y;
-	// 				context.moveTo(CrossX-2, CrossY-2);
-	// 				context.lineTo(CrossX+2, CrossY+2);
-	// 				context.moveTo(CrossX+2, CrossY-2);
-	// 				context.lineTo(CrossX-2, CrossY+2);
-	// 				context.moveTo(CrossX, hstart);
-	// 				context.lineTo(CrossX, hstart + gh);
-	// 				context.stroke();
-	// 				TimerState.tooltipy = Math.min(YStart - BoxHeight, Y) + View.y;
-	// 			}
-	// 			hstart += gh;
-	// 		}
-	// 	}
-	// }
-
+		y += GraphHeight;
+	}
 	ProfileLeave();
 
 }
@@ -3197,6 +3072,108 @@ function DrawCaptureMenu(context)
 		EnableMenu(SubMenuCapture);
 	}
 }
+
+function DrawRootGraphMenuElement(context)
+{
+	MouseInGraphButton = -1;
+	if(!ShowMenu())
+	{
+		return;
+	}
+	let y = 0;
+	let ydelta = nHeight / NumGraphs;
+	for(let i = 0; i < NumGraphs; ++i)
+	{
+		let Text = "Source";
+		var w = 10 + context.measureText(Text).width;
+		var X = nWidth / 2 - w / 2;
+		var XCenter = nWidth / 2;
+		var Y = y;
+		let Inside = MouseInside(X, Y, w, 4 + FontHeight) ;
+
+		context.textAlign = 'center';
+		context.fillStyle = Inside ? nBackColors[1] : 'black';
+		context.fillRect(X, Y, w, 4 + FontHeight);
+		context.fillStyle = '#ffffff';
+		context.fillText(Text, XCenter, Y + FontHeight);
+		context.textAlign = '';
+
+		if(Inside)
+		{
+			MouseInGraphButton = i;
+			GraphButtonX = X + w;
+			GraphButtonY = Y;
+			GraphButtonIndex = MouseInGraphButton;
+			EnableMenu(SubMenuGraph);
+		}
+
+
+
+		y += ydelta;
+	}
+
+	// var CaptureRange = MouseDragActiveXStart < MouseDragActiveXEnd ? "Selection" : (""+Settings.CaptureFrames);
+	// var CaptureText = "Capture[" + CaptureRange + "]";
+	// var w = 10 + context.measureText(CaptureText).width;
+	// var X = nWidth / 2 - w / 2;
+	// var XCenter = nWidth / 2;
+	// var Y = nHeight - 30;
+	// MouseInCaptureButton = MouseInside(X, Y, w, 4 + FontHeight);
+	// context.textAlign = 'center';
+	// context.fillStyle = MouseInCaptureButton ? nBackColors[1] : 'black';
+	// context.fillRect(X, Y, w, 4 + FontHeight);
+	// context.fillStyle = '#ffffff';
+	// context.fillText(CaptureText, XCenter, Y + FontHeight);
+
+
+
+	// X += w + 2;
+	// var MenuText = "^";
+	// var w2 = 10 + context.measureText(MenuText).width;
+	// var bMouseInCaptureMenu = MouseInside(X, Y, w2, 4 + FontHeight);
+	// context.fillStyle = bMouseInCaptureMenu ? nBackColors[1] : 'black';
+	// context.fillRect(X, Y, w2, 4 + FontHeight);
+
+	// context.fillStyle = '#ffffff';
+	// context.fillText(MenuText, X + w2*0.5, Y + FontHeight);
+
+	// let X1 = X + w2 + 10;
+	// if(CaptureTriggerDelta)
+	// {
+	// 	let text = FormatTime(CaptureTriggerDelta);
+	// 	let w = 10 + context.measureText("text").width;
+	// 	context.fillStyle = 'black';
+	// 	context.fillRect(X1, Y, w, 4 + FontHeight);
+	// 	context.fillStyle = '#ffffff';
+	// 	context.fillText(text, X1 + w*0.5, Y + FontHeight);
+	// 	X1 += w;
+	// }
+
+	// let Pending = (CaptureTriggerTime != null && CaptureTriggerTimeType == 2);
+	// if(AutoCaptureEnabled || Pending)
+	// {
+	// 	let d = Dots();
+	// 	let AutoStatus = Pending ? (" pending" + Dots()) : "";
+	// 	let Source = GetAutoCaptureString();
+	// 	let Threshold = FormatTime(Settings.AutoCaptureTheshold);
+	// 	let str = "Autocapture " + AutoStatus + " Source:'" + Source + "' Threshold:" + Threshold + "ms Repeat=" + (Pending?Settings.AutoCaptureRepeat:AutoCaptureEnabled);
+	// 	let w = 10 + context.measureText(str).width;
+	// 	context.fillStyle = 'black';
+	// 	context.fillRect(X1, Y, w, 4 + FontHeight);
+	// 	context.fillStyle = '#ffffff';
+	// 	context.fillText(str, X1 + w*0.5, Y + FontHeight);
+	// 	X1 += w;
+	// }
+
+	// context.textAlign = 'left';
+	// if(bMouseInCaptureMenu)
+	// {
+	// 	CaptureButtonX = X + w2;
+	// 	CaptureButtonY = Y;
+	// 	EnableMenu(SubMenuCapture);
+	// }
+}
+
 function UpdateX7Views()
 {
 	if(Settings.ViewActive == VIEW_BAR_SINGLE || Settings.ViewActive == VIEW_BAR_ALL)
@@ -3271,6 +3248,8 @@ function DrawViews()
 	DrawCaptureMenu(context);
 	DrawGraphSettingsMenu(context, MainView.x, MainView.y, MainView.w, MainView.h);
 
+	DrawRootGraphMenuElement(context);
+
 	ProfileLeave();
 
 }
@@ -3284,9 +3263,14 @@ var SubMenuViews = 6;
 var SubMenuPresets = 7;
 var SubMenuColumns = 8;
 var SubMenuCapture = 9;
+
+
 var SubMenuGraphSettings = 10;
 var SubMenuGraphSettingsIndex = -1;
 var SubMenuGraphSettingsKey = "";
+let SubMenuGraph = 11;
+let SubMenuGraphIndex = -1;
+
 
 var SubMenuActive = -1;
 var SubMenuTimeoutBase = 0.7;
@@ -4473,6 +4457,55 @@ function DrawMenuGraphSettings()
 
 }
 
+
+function DrawMenuGraph()
+{
+	let Selection = null;
+	let SizeInfo = {};
+	SizeInfo.h = (CSVMenuItems.length) * BoxHeight;
+	let Strings = ["AutoCapture Enabled", "AutoCapture Threshold", "AutoCapture Source", "Capture Length"];
+	let wLeft = MeasureArray(0, Strings);
+	let wRight = 50;
+	wRight = MeasureArray(wRight, ["Frame Time"]);
+	let Width = wLeft + 35 + wRight;
+
+
+	SizeInfo.w = Width;
+	SizeInfo.x = GraphButtonX;
+	SizeInfo.y = GraphButtonY;
+
+	let M = CreateMenuState(SizeInfo);
+	let context = CanvasDetailedView.getContext('2d');
+	context.fillRect(M.x, M.y, Width, SizeInfo.h);
+	// let SubGraphSettings = GetSubGraphSettings(SubMenuGraphSettingsKey);
+
+	// CSVMenuItems.push(Item);
+
+	let GraphSet = Graphs[GraphButtonIndex];
+	if(!GraphSet)
+		debugger;
+
+	for(let i = 0; i < CSVMenuItems.length; ++i)
+	{
+		let e = CSVMenuItems[i];
+		let Active = GraphSet[i] == 1;
+		if(DrawMenuElement(M, Active, e.Set, e.Name, 'white'))
+		{
+			if(Active)
+				GraphSet[i] = 0;
+			else
+				GraphSet[i] = 1;
+		}
+	}
+
+	SizeInfo.h = M.y - SizeInfo.y;
+	return SizeInfo;
+
+
+
+}
+
+
 function Dots()
 {
 	let t = new Date().getMilliseconds() / 200;
@@ -4480,6 +4513,8 @@ function Dots()
 	let x = Math.floor(t) %4;
 	return dots[x];
 }
+
+
 function DrawMenuCapture()
 {
 	let Selection = null;
@@ -5702,7 +5737,7 @@ function ShowMenu()
 
 function DrawMenu()
 {
-	if(WSConnected && WS && WS.readyState == 1)
+	//if(WSConnected && WS && WS.readyState == 1)
 	{
 		var context = CanvasDetailedView.getContext('2d');
 		var nColorIndex = 0;
@@ -5764,6 +5799,14 @@ function DrawMenu()
 		{
 			MenuRect = DrawMenuGraphSettings();
 		}
+		else if(SubMenuActive == SubMenuGraph)
+		{
+			MenuRect = DrawMenuGraph();
+		}
+
+
+
+
 		var Grow = 10;
 		MenuRect.x -= Grow;
 		MenuRect.y -= Grow;
@@ -5840,7 +5883,12 @@ function DrawActiveToolTip()
 {
 	if(SubMenuActive == -1)
 	{
-		if(ToolTipCallback && SubMenuActive == -1)
+		if(ToolTipImmediate)
+		{
+			DrawToolTip(ToolTipImmediate, CanvasDetailedView, MouseX, MouseY);
+			ToolTipImmediate = null;
+		}
+		else if(ToolTipCallback)
 		{
 			var Strings = ToolTipCallback(CanvasDetailedView, MouseX, MouseY);
 			if(Strings)
@@ -8159,7 +8207,10 @@ function ReadCSVFile(Set, File)
 		return;
 	let Reader = new FileReader();
 	Reader.onload = function(e) {
+		let t0 = new Date();
 		ParseCSVFile(Set, e.target.result, File.name);
+		let t1 = new Date();
+		console.log("Parsing took ", (t1-t0).toFixed(2));
 	};
 	Reader.onprogress = function(e)
 	{
