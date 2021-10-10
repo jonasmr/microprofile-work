@@ -350,29 +350,33 @@ let CSVMenuItems = [];
 
 let MAX_GRAPHS = 5;
 let Graphs = new Array(MAX_GRAPHS);
+let GraphModes = new Array(MAX_GRAPHS);
 let NumGraphs = 5;
+
 let MouseInGraphButton = 0;
+let MouseInGraphModeButton = 0;
+
 let GraphButtonIndex = -1;
+let GraphModeButtonIndex = 0;
+
 let GraphButtonX = 0;
 let GraphButtonY = 0;
+
+let GraphModeButtonX = 0;
+let GraphModeButtonY = 0;
 for(let i = 0; i < MAX_GRAPHS; ++i)
 {
 	Graphs[i] = {};
-	Graphs[i][1 + i * 3] = 1;
+	Graphs[i][i+1] = 1;
+	GraphModes[i] = 1;
 }
 
 
-
-
-
-
-
-function AddCSVMenu(Set, Name, Type, Data)
+function AddCSVMenu(Set, Name, Data)
 {
 	let Item = {};
 	Item.Set = Set;
 	Item.Name = Name;
-	Item.Type = Type;
 	Item.Data = Data;
 
 	CSVMenuItems.push(Item);
@@ -1674,11 +1678,6 @@ function DrawGraphSplit(View, LocalMouseX, LocalMouseY, SubIndex)
 }
 function DrawGraphCSV(View, LocalMouseX, LocalMouseY, SubIndex)
 {
-	// let Split = 1;
-
-	// var TimerMap = FrameData.TimerMap;
-	// if(!TimerMap)
-	// 	return;
 
 	ProfileEnter("DrawGraphCSV");
 	var Canvas = View.Canvas[View.BackBuffer];
@@ -1687,9 +1686,6 @@ function DrawGraphCSV(View, LocalMouseX, LocalMouseY, SubIndex)
 
 	var h = View.h;
 	var w = View.w;
-	// var fHeightScale = h / ReferenceGraph;
-	// var MouseDragging = 0;
-	// var fWidth = w / FRAME_COUNT;
 
 
 	let Params = CreateDrawGraph2Parameters();
@@ -1707,11 +1703,27 @@ function DrawGraphCSV(View, LocalMouseX, LocalMouseY, SubIndex)
 		Params.Rect = WindowRect(0, y, w, GraphHeight);
 		let Data = [];
 		let GraphIndices = Graphs[i];
+		let GraphMode = GraphModes[i];
 		for(let Index in GraphIndices)
 		{
-			if(GraphIndices[Index])
+			if(GraphIndices[Index] && CSVMenuItems[Index])
 			{
-				Data.push(CSVMenuItems[Index].Data);
+				let ItemData = CSVMenuItems[Index].Data;
+				for(let j = 0; j < 4; ++j)
+				{
+					if(0 != (GraphMode &(1<<j)))
+					{
+						if(j == 0)
+							Data.push(ItemData.Avg);
+						else if(j == 1)
+							Data.push(ItemData.Avg);
+						else if(j == 2)
+							Data.push(ItemData.Min);
+						else if(j == 3)
+							Data.push(ItemData.Max);
+					}
+				}
+
 			}
 		}
 		DrawGraph2(context, Params, Data, Mouse);
@@ -3076,6 +3088,7 @@ function DrawCaptureMenu(context)
 function DrawRootGraphMenuElement(context)
 {
 	MouseInGraphButton = -1;
+	MouseInGraphModeButton = -1;
 	if(!ShowMenu())
 	{
 		return;
@@ -3101,77 +3114,36 @@ function DrawRootGraphMenuElement(context)
 		if(Inside)
 		{
 			MouseInGraphButton = i;
-			GraphButtonX = X + w;
-			GraphButtonY = Y;
+			GraphButtonX = X + 4;
+			GraphButtonY = Y + FontHeight + 4;
 			GraphButtonIndex = MouseInGraphButton;
 			EnableMenu(SubMenuGraph);
 		}
 
+		X += w + 10;
 
+		Text = "Mode";
+		w = 10 + context.measureText(Text).width;
+		XCenter = X + w / 2;
+		Inside = MouseInside(X, Y, w, 4 + FontHeight) ;
 
+		context.textAlign = 'center';
+		context.fillStyle = Inside ? nBackColors[1] : 'black';
+		context.fillRect(X, Y, w, 4 + FontHeight);
+		context.fillStyle = '#ffffff';
+		context.fillText(Text, XCenter, Y + FontHeight);
+		context.textAlign = '';
+
+		if(Inside)
+		{
+			MouseInGraphModeButton = i;
+			GraphModeButtonX = X + 2;
+			GraphModeButtonY = Y + FontHeight + 2;
+			GraphModeButtonIndex = MouseInGraphModeButton;
+			EnableMenu(SubMenuGraphMode);
+		}
 		y += ydelta;
 	}
-
-	// var CaptureRange = MouseDragActiveXStart < MouseDragActiveXEnd ? "Selection" : (""+Settings.CaptureFrames);
-	// var CaptureText = "Capture[" + CaptureRange + "]";
-	// var w = 10 + context.measureText(CaptureText).width;
-	// var X = nWidth / 2 - w / 2;
-	// var XCenter = nWidth / 2;
-	// var Y = nHeight - 30;
-	// MouseInCaptureButton = MouseInside(X, Y, w, 4 + FontHeight);
-	// context.textAlign = 'center';
-	// context.fillStyle = MouseInCaptureButton ? nBackColors[1] : 'black';
-	// context.fillRect(X, Y, w, 4 + FontHeight);
-	// context.fillStyle = '#ffffff';
-	// context.fillText(CaptureText, XCenter, Y + FontHeight);
-
-
-
-	// X += w + 2;
-	// var MenuText = "^";
-	// var w2 = 10 + context.measureText(MenuText).width;
-	// var bMouseInCaptureMenu = MouseInside(X, Y, w2, 4 + FontHeight);
-	// context.fillStyle = bMouseInCaptureMenu ? nBackColors[1] : 'black';
-	// context.fillRect(X, Y, w2, 4 + FontHeight);
-
-	// context.fillStyle = '#ffffff';
-	// context.fillText(MenuText, X + w2*0.5, Y + FontHeight);
-
-	// let X1 = X + w2 + 10;
-	// if(CaptureTriggerDelta)
-	// {
-	// 	let text = FormatTime(CaptureTriggerDelta);
-	// 	let w = 10 + context.measureText("text").width;
-	// 	context.fillStyle = 'black';
-	// 	context.fillRect(X1, Y, w, 4 + FontHeight);
-	// 	context.fillStyle = '#ffffff';
-	// 	context.fillText(text, X1 + w*0.5, Y + FontHeight);
-	// 	X1 += w;
-	// }
-
-	// let Pending = (CaptureTriggerTime != null && CaptureTriggerTimeType == 2);
-	// if(AutoCaptureEnabled || Pending)
-	// {
-	// 	let d = Dots();
-	// 	let AutoStatus = Pending ? (" pending" + Dots()) : "";
-	// 	let Source = GetAutoCaptureString();
-	// 	let Threshold = FormatTime(Settings.AutoCaptureTheshold);
-	// 	let str = "Autocapture " + AutoStatus + " Source:'" + Source + "' Threshold:" + Threshold + "ms Repeat=" + (Pending?Settings.AutoCaptureRepeat:AutoCaptureEnabled);
-	// 	let w = 10 + context.measureText(str).width;
-	// 	context.fillStyle = 'black';
-	// 	context.fillRect(X1, Y, w, 4 + FontHeight);
-	// 	context.fillStyle = '#ffffff';
-	// 	context.fillText(str, X1 + w*0.5, Y + FontHeight);
-	// 	X1 += w;
-	// }
-
-	// context.textAlign = 'left';
-	// if(bMouseInCaptureMenu)
-	// {
-	// 	CaptureButtonX = X + w2;
-	// 	CaptureButtonY = Y;
-	// 	EnableMenu(SubMenuCapture);
-	// }
 }
 
 function UpdateX7Views()
@@ -3269,7 +3241,8 @@ var SubMenuGraphSettings = 10;
 var SubMenuGraphSettingsIndex = -1;
 var SubMenuGraphSettingsKey = "";
 let SubMenuGraph = 11;
-let SubMenuGraphIndex = -1;
+
+let SubMenuGraphMode = 12;
 
 
 var SubMenuActive = -1;
@@ -4471,15 +4444,14 @@ function DrawMenuGraph()
 
 
 	SizeInfo.w = Width;
+
+
 	SizeInfo.x = GraphButtonX;
 	SizeInfo.y = GraphButtonY;
 
 	let M = CreateMenuState(SizeInfo);
 	let context = CanvasDetailedView.getContext('2d');
 	context.fillRect(M.x, M.y, Width, SizeInfo.h);
-	// let SubGraphSettings = GetSubGraphSettings(SubMenuGraphSettingsKey);
-
-	// CSVMenuItems.push(Item);
 
 	let GraphSet = Graphs[GraphButtonIndex];
 	if(!GraphSet)
@@ -4500,10 +4472,51 @@ function DrawMenuGraph()
 
 	SizeInfo.h = M.y - SizeInfo.y;
 	return SizeInfo;
+}
+
+function DrawMenuGraphMode()
+{
+	let Selection = null;
+	let SizeInfo = {};
+	SizeInfo.h = 4 * BoxHeight;
+	let Strings = ["Default", "Average", "Min", "Max"];
+	let wLeft = MeasureArray(0, Strings);
+	let wRight = 50;
+	wRight = MeasureArray(wRight, ["Frame Time"]);
+	let Width = wLeft + 35 + wRight;
+
+	SizeInfo.w = Width;
+	SizeInfo.x = GraphModeButtonX;
+	SizeInfo.y = GraphModeButtonY;
+
+	let M = CreateMenuState(SizeInfo);
+	let context = CanvasDetailedView.getContext('2d');
+	context.fillRect(M.x, M.y, Width, SizeInfo.h);
+
+	let GraphModeMask = GraphModes[GraphModeButtonIndex];
+	let Mask = 1;
+	for(let i = 0; i < Strings.length; ++i)
+	{
+		let Active = 0 != (GraphModeMask&Mask);
+		if(DrawMenuElement(M, Active, Strings[i], "", 'white'))
+		{
+			if(Active)
+				GraphModeMask = GraphModeMask & ~Mask;
+			else
+				GraphModeMask = GraphModeMask | Mask;
+		}
+		Mask = Mask << 1;
+	}
+	GraphModes[GraphModeButtonIndex] = GraphModeMask;
+
+	SizeInfo.h = M.y - SizeInfo.y;
+	return SizeInfo;
 
 
 
 }
+
+
 
 
 function Dots()
@@ -5802,6 +5815,10 @@ function DrawMenu()
 		else if(SubMenuActive == SubMenuGraph)
 		{
 			MenuRect = DrawMenuGraph();
+		}
+		else if(SubMenuActive == SubMenuGraphMode)
+		{
+			MenuRect = DrawMenuGraphMode();
 		}
 
 
@@ -8066,7 +8083,7 @@ function ParseCSVCheckFinished(Name)
 					if(count[i])
 					{
 						avg[i] = sum[i] / count[i];
-						console.log(".. ", avg[i], " min ", min[i]);
+					//	console.log(".. ", avg[i], " min ", min[i]);
 					}
 					else
 					{
@@ -8076,13 +8093,19 @@ function ParseCSVCheckFinished(Name)
 				}
 				let color = '#449900';
 				let name = CName;
-				Set.GraphDataMin[CName] = CreateGraph2Data(min, CName, color);
-				Set.GraphDataMax[CName] = CreateGraph2Data(max, CName, color);
-				Set.GraphDataAvg[CName] = CreateGraph2Data(avg, CName, color);
 
-				AddCSVMenu(Name, CName, "Min", Set.GraphDataMin[CName]);
-				AddCSVMenu(Name, CName, "Max", Set.GraphDataMax[CName]);
-				AddCSVMenu(Name, CName, "Avg", Set.GraphDataAvg[CName]);
+				let FullName = Name + "/"+ CName;
+				let color0 = ColorFromString(FullName, 70,  60);
+				let color1 = ColorFromString(FullName, 80,  60);
+				let color2 = ColorFromString(FullName, 80,  30);
+				Set.GraphDataMin[CName] = CreateGraph2Data(min, FullName, color2);
+				Set.GraphDataMax[CName] = CreateGraph2Data(max, FullName, color1);
+				Set.GraphDataAvg[CName] = CreateGraph2Data(avg, FullName, color0);
+				let Data = {};
+				Data.Min = Set.GraphDataMin[CName];
+				Data.Max = Set.GraphDataMax[CName];
+				Data.Avg = Set.GraphDataAvg[CName];
+				AddCSVMenu(Name, CName, Data);
 
 			}
 
