@@ -71,6 +71,12 @@ Enter: Capture selection/Next N Frames
 <script>
 "use strict"
 
+
+// TODO:
+// ZOOM
+// Fixup multile different ranges
+// make super elaborate tooltip
+
 var FRAME_HISTORY_COLOR_CPU = '#ff7f27';
 var FRAME_HISTORY_COLOR_GPU = '#ffffff';
 
@@ -348,10 +354,10 @@ let CSVSets = {};
 let CSVIndex = 0;
 let CSVMenuItems = [];
 
-let MAX_GRAPHS = 5;
+let MAX_GRAPHS = 3;
 let Graphs = new Array(MAX_GRAPHS);
 let GraphModes = new Array(MAX_GRAPHS);
-let NumGraphs = 5;
+let NumGraphs = 3;
 
 let MouseInGraphButton = 0;
 let MouseInGraphModeButton = 0;
@@ -368,7 +374,7 @@ for(let i = 0; i < MAX_GRAPHS; ++i)
 {
 	Graphs[i] = {};
 	Graphs[i][i+1] = 1;
-	GraphModes[i] = 1;
+	GraphModes[i] = 1|2;
 }
 
 
@@ -1709,18 +1715,26 @@ function DrawGraphCSV(View, LocalMouseX, LocalMouseY, SubIndex)
 			if(GraphIndices[Index] && CSVMenuItems[Index])
 			{
 				let ItemData = CSVMenuItems[Index].Data;
-				for(let j = 0; j < 4; ++j)
+				for(let j = 0; j < 8; ++j)
 				{
 					if(0 != (GraphMode &(1<<j)))
 					{
 						if(j == 0)
-							Data.push(ItemData.Avg);
+							Data.push(ItemData.Sect);
 						else if(j == 1)
 							Data.push(ItemData.Avg);
 						else if(j == 2)
 							Data.push(ItemData.Min);
 						else if(j == 3)
 							Data.push(ItemData.Max);
+						else if(j == 4)
+							Data.push(ItemData.PercSect);
+						else if(j == 5)
+							Data.push(ItemData.PercAvg);
+						else if(j == 6)
+							Data.push(ItemData.PercMin);
+						else if(j == 7)
+							Data.push(ItemData.PercMax);
 					}
 				}
 
@@ -4479,7 +4493,7 @@ function DrawMenuGraphMode()
 	let Selection = null;
 	let SizeInfo = {};
 	SizeInfo.h = 4 * BoxHeight;
-	let Strings = ["Default", "Average", "Min", "Max"];
+	let Strings = ["Min/Max Region", "Average", "Min", "Max", "Percentil Min/Max Region", "Percentile Avg", "Percentile Min", "Percentile Max"];
 	let wLeft = MeasureArray(0, Strings);
 	let wRight = 50;
 	wRight = MeasureArray(wRight, ["Frame Time"]);
@@ -7794,12 +7808,18 @@ function WriteCookie()
 }
 
 // Shared graph code begin
-function CreateGraph2Data(Samples, Name, Color)
+let GRAPH_DRAW_FILLED = 1;
+let GRAPH_DRAW_LINES = 2;
+let GRAPH_DRAW_SECTION = 3;
+
+function CreateGraph2Data(Samples, Name, Color, Mode, Samples2)
 {
 	let gd = {};
 	gd.Samples = Samples;
+	gd.Samples2 = Samples2;
 	gd.Name = Name;
 	gd.Color = Color;
+	gd.Mode = Mode;
 	return gd;
 }
 
@@ -7813,6 +7833,8 @@ function CreateDrawGraph2Parameters()
 	P.Ext = "ms";
 	P.Border = 2;
 	P.Frame = 1;
+	P.DrawMode = GRAPH_DRAW_FILLED;
+
 	return P;
 }
 
@@ -7877,11 +7899,14 @@ function DrawGraph2(context, Parameters, data, Mouse)
 	let HeightScale = h / (RangeMax-RangeMin);
 	let Y = y + h;
 	let YStart = Y;
-
+	let GRAPH_ALPHA = 0.2;
+	let SECTION_ALPHA = 0.3;
 	for(let dataindex in data)
 	{
 		let LocalElement = data[dataindex];
 		let Samples = LocalElement.Samples;
+		let Samples2 = LocalElement.Samples2;
+		let Mode = LocalElement.Mode;
 		let X = x + w - (Samples.length-1)*SampleWidth;
 		Y = y + h;
 
@@ -7899,29 +7924,52 @@ function DrawGraph2(context, Parameters, data, Mouse)
 			X += SampleWidth;
 
 		}
-		let GRAPH_ALPHA = 0.2;
-		context.stroke();
-		context.lineTo(X-SampleWidth, YStart);
-		context.lineTo(x, YStart);
-		context.globalAlpha = GRAPH_ALPHA;
-		context.fill();
 
-		if(MouseInside)
+		if(Mode == GRAPH_DRAW_SECTION)
 		{
-			let MouseSample = Samples[MouseIndex];
-			let Y = Math.max(YStart - MouseSample * HeightScale, y);
-			let X = x + w + (MouseIndex - (Samples.length-1))*SampleWidth;
-
-			context.globalAlpha = 0.8;
-			context.beginPath();
-			context.arc(X, Y, 2, 0, 2 * Math.PI);
+			if(!Samples2)
+				debugger;
+			if(Samples2.length != Samples.length)
+				debugger;
+			let len = Samples2.length;
+			for(let i = 0; i < len; ++i)
+			{
+				X -= SampleWidth;
+				let I = len - i - 1;
+				Y = Math.max(YStart - Samples2[I] * HeightScale, y);
+				context.lineTo(X, Y);
+			}
+			context.globalAlpha = SECTION_ALPHA;
 			context.fill();
-
-			context.globalAlpha = 1;
-
-			context.beginPath();
-			context.arc(X, Y, 3, 0, 2 * Math.PI);
+		}
+		else
+		{
 			context.stroke();
+			context.lineTo(X-SampleWidth, YStart);
+			context.lineTo(x, YStart);
+			if(Mode == GRAPH_DRAW_FILLED)
+			{
+				context.globalAlpha = GRAPH_ALPHA;
+				context.fill();
+			}
+
+			if(MouseInside)
+			{
+				let MouseSample = Samples[MouseIndex];
+				let Y = Math.max(YStart - MouseSample * HeightScale, y);
+				let X = x + w + (MouseIndex - (Samples.length-1))*SampleWidth;
+
+				context.globalAlpha = 0.8;
+				context.beginPath();
+				context.arc(X, Y, 2, 0, 2 * Math.PI);
+				context.fill();
+
+				context.globalAlpha = 1;
+
+				context.beginPath();
+				context.arc(X, Y, 3, 0, 2 * Math.PI);
+				context.stroke();
+			}
 		}
 
 
@@ -7973,10 +8021,13 @@ function DrawGraph2(context, Parameters, data, Mouse)
 	for(let dataindex = 0; dataindex < data.length; ++dataindex)
 	{
 		let LocalElement = data[dataindex];
-		context.textAlign='left';
-		context.strokeStyle = LocalElement.Color;
-		context.fillStyle = LocalElement.Color;
-		context.fillText(LocalElement.Name, x+2, y + FontHeight * (dataindex+1));
+		if(LocalElement.Mode != GRAPH_DRAW_SECTION)
+		{
+			context.textAlign='left';
+			context.strokeStyle = LocalElement.Color;
+			context.fillStyle = LocalElement.Color;
+			context.fillText(LocalElement.Name, x+2, y + FontHeight * (dataindex+1));
+		}
 	}
 
 	if(MouseInside)
@@ -7985,9 +8036,14 @@ function DrawGraph2(context, Parameters, data, Mouse)
 		for(let dataindex in data)
 		{
 			let LocalElement = data[dataindex];
-			let Samples = LocalElement.Samples;
-			ToolTipImmediate.push(LocalElement.Name);
-			ToolTipImmediate.push(FormatTime(Samples[MouseIndex])+ Parameters.Ext);
+			if(LocalElement.Mode != GRAPH_DRAW_SECTION)
+			{
+
+				/// MAKE TOOLTIPS SHOW: MIN, MAX, AVG, Percentile, variance.
+				let Samples = LocalElement.Samples;
+				ToolTipImmediate.push(LocalElement.Name);
+				ToolTipImmediate.push(FormatTime(Samples[MouseIndex])+ Parameters.Ext);
+			}
 		}
 	}
 
@@ -8020,6 +8076,11 @@ function CreateCSVSet()
 	Set.GraphDataMin = {};
 	Set.GraphDataMax = {};
 	Set.GraphDataAvg = {};
+	Set.GraphDataSect = {};
+	Set.GraphDataPercentileAvg = {};
+	Set.GraphDataPercentileMin = {};
+	Set.GraphDataPercentileMax = {};
+	Set.GraphDataPercentileSect = {};
 	Set.ColumnIndex = 0;
 	Set.PendingCount = 0;
 	Set.FinishedCount = 0;
@@ -8055,6 +8116,9 @@ function ParseCSVCheckFinished(Name)
 				let min = new Array(MaxCount);
 				let max = new Array(MaxCount);
 				let avg = new Array(MaxCount);
+				let min_perc = new Array(MaxCount);
+				let max_perc = new Array(MaxCount);
+				let avg_perc = new Array(MaxCount);
 				for(let i = 0; i < MaxCount; ++i)
 				{
 					count[i] = 0;
@@ -8083,7 +8147,6 @@ function ParseCSVCheckFinished(Name)
 					if(count[i])
 					{
 						avg[i] = sum[i] / count[i];
-					//	console.log(".. ", avg[i], " min ", min[i]);
 					}
 					else
 					{
@@ -8091,20 +8154,40 @@ function ParseCSVCheckFinished(Name)
 						max[i] = 0;
 					}
 				}
-				let color = '#449900';
-				let name = CName;
+				for(let i = 0;i < MaxCount; ++i)
+				{
+					min_perc[i] = min[i];
+					max_perc[i] = max[i];
+					avg_perc[i] = avg[i];
+				}
+				let comp = function(l, r){ return l-r;};
 
+				min_perc.sort(comp);
+				max_perc.sort(comp);
+				avg_perc.sort(comp);
+
+				let name = CName;
 				let FullName = Name + "/"+ CName;
 				let color0 = ColorFromString(FullName, 70,  60);
 				let color1 = ColorFromString(FullName, 80,  60);
 				let color2 = ColorFromString(FullName, 80,  30);
-				Set.GraphDataMin[CName] = CreateGraph2Data(min, FullName, color2);
-				Set.GraphDataMax[CName] = CreateGraph2Data(max, FullName, color1);
-				Set.GraphDataAvg[CName] = CreateGraph2Data(avg, FullName, color0);
+				Set.GraphDataMin[CName] = CreateGraph2Data(min, FullName, color0, GRAPH_DRAW_LINES);
+				Set.GraphDataMax[CName] = CreateGraph2Data(max, FullName, color0, GRAPH_DRAW_LINES);
+				Set.GraphDataAvg[CName] = CreateGraph2Data(avg, FullName, color1, GRAPH_DRAW_LINES);
+				Set.GraphDataSect[CName] = CreateGraph2Data(max, FullName, color0, GRAPH_DRAW_SECTION, min);
+				Set.GraphDataPercentileAvg[CName] = CreateGraph2Data(avg_perc, FullName, color0, GRAPH_DRAW_LINES);
+				Set.GraphDataPercentileMin[CName] = CreateGraph2Data(min_perc, FullName, color0, GRAPH_DRAW_LINES);
+				Set.GraphDataPercentileMax[CName] = CreateGraph2Data(max_perc, FullName, color0, GRAPH_DRAW_LINES);
+				Set.GraphDataPercentileSect[CName] = CreateGraph2Data(max_perc, FullName, color0, GRAPH_DRAW_SECTION, min_perc);
 				let Data = {};
 				Data.Min = Set.GraphDataMin[CName];
 				Data.Max = Set.GraphDataMax[CName];
 				Data.Avg = Set.GraphDataAvg[CName];
+				Data.Sect = Set.GraphDataSect[CName];
+				Data.PercAvg = Set.GraphDataPercentileAvg[CName];
+				Data.PercMin = Set.GraphDataPercentileMin[CName];
+				Data.PercMax = Set.GraphDataPercentileMax[CName];
+				Data.PercSect = Set.GraphDataPercentileSect[CName];
 				AddCSVMenu(Name, CName, Data);
 
 			}
