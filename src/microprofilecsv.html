@@ -354,10 +354,10 @@ let CSVSets = {};
 let CSVIndex = 0;
 let CSVMenuItems = [];
 
-let MAX_GRAPHS = 3;
+let MAX_GRAPHS = 1;
 let Graphs = new Array(MAX_GRAPHS);
 let GraphModes = new Array(MAX_GRAPHS);
-let NumGraphs = 3;
+let NumGraphs = MAX_GRAPHS;
 
 let MouseInGraphButton = 0;
 let MouseInGraphModeButton = 0;
@@ -7858,6 +7858,14 @@ function DrawGraph2(context, Parameters, data, Mouse)
 			MaxSample = Math.max(MaxSample, d.Samples[j]);
 			MinSample = Math.min(MinSample, d.Samples[j]);
 		}
+		if(d.Samples2)
+		{
+			for(let j in d.Samples2)
+			{
+				MaxSample = Math.max(MaxSample, d.Samples2[j]);
+				MinSample = Math.min(MinSample, d.Samples2[j]);
+			}
+		}
 	}
 	if(0 == MaxLen)
 		return;
@@ -7867,6 +7875,7 @@ function DrawGraph2(context, Parameters, data, Mouse)
 		RangeMin = MinSample;
 		RangeMax = MaxSample;
 	}
+	RangeMin = 0;
 
 
 	let Ext = Parameters.Ext;
@@ -8018,6 +8027,7 @@ function DrawGraph2(context, Parameters, data, Mouse)
 		context.stroke();
 	}
 
+	let localindex = 0;
 	for(let dataindex = 0; dataindex < data.length; ++dataindex)
 	{
 		let LocalElement = data[dataindex];
@@ -8026,7 +8036,8 @@ function DrawGraph2(context, Parameters, data, Mouse)
 			context.textAlign='left';
 			context.strokeStyle = LocalElement.Color;
 			context.fillStyle = LocalElement.Color;
-			context.fillText(LocalElement.Name, x+2, y + FontHeight * (dataindex+1));
+			context.fillText(LocalElement.Name, x+2, y + FontHeight * (localindex+1));
+			localindex++;
 		}
 	}
 
@@ -8038,15 +8049,14 @@ function DrawGraph2(context, Parameters, data, Mouse)
 			let LocalElement = data[dataindex];
 			if(LocalElement.Mode != GRAPH_DRAW_SECTION)
 			{
-
 				/// MAKE TOOLTIPS SHOW: MIN, MAX, AVG, Percentile, variance.
 				let Samples = LocalElement.Samples;
 				ToolTipImmediate.push(LocalElement.Name);
-				ToolTipImmediate.push(FormatTime(Samples[MouseIndex])+ Parameters.Ext);
+				ToolTipImmediate.push("            " + Samples[MouseIndex].toFixed(4).slice(-12));
 			}
+
 		}
 	}
-
 	ProfileLeave();
 }
 // Shared graph code end
