@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-<title>MicroProfile Live</title>
+<title>MicroProfile CSV viewer</title>
 <style>
 /* about css: http://bit.ly/1eMQ42U */
 body {margin: 0px;padding: 0px; font: 12px Courier New;background-color:#343434; color:white;overflow:hidden;}
@@ -351,10 +351,12 @@ var HelpFade;
 
 // CSV Data
 let CSVSets = {};
+let CSVAllColumns = {};
 let CSVIndex = 0;
-let CSVMenuItems = [];
+let CSVMaxLength = 0;
+//let CSVMenuItems = [];
 
-let MAX_GRAPHS = 1;
+let MAX_GRAPHS = 3;
 let Graphs = new Array(MAX_GRAPHS);
 let GraphModes = new Array(MAX_GRAPHS);
 let NumGraphs = MAX_GRAPHS;
@@ -370,22 +372,11 @@ let GraphButtonY = 0;
 
 let GraphModeButtonX = 0;
 let GraphModeButtonY = 0;
+
 for(let i = 0; i < MAX_GRAPHS; ++i)
 {
 	Graphs[i] = {};
-	Graphs[i][i+1] = 1;
 	GraphModes[i] = 1|2;
-}
-
-
-function AddCSVMenu(Set, Name, Data)
-{
-	let Item = {};
-	Item.Set = Set;
-	Item.Name = Name;
-	Item.Data = Data;
-
-	CSVMenuItems.push(Item);
 }
 
 
@@ -1682,9 +1673,9 @@ function DrawGraphSplit(View, LocalMouseX, LocalMouseY, SubIndex)
 {
 	DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, 1);
 }
+
 function DrawGraphCSV(View, LocalMouseX, LocalMouseY, SubIndex)
 {
-
 	ProfileEnter("DrawGraphCSV");
 	var Canvas = View.Canvas[View.BackBuffer];
 	var context = Canvas.getContext('2d');
@@ -1704,40 +1695,71 @@ function DrawGraphCSV(View, LocalMouseX, LocalMouseY, SubIndex)
 
 	let GraphHeight = h / NumGraphs;
 	let y = 0;
+	let SetColors = 0;
+	for(let set in CSVSets)
+		SetColors++;
+	if(SetColors < 2)
+		SetColors = 0;
+
+
+	let SetHueBase = [0.175, 0.85, 0.53];
+	let SetHueRange = [0.8, 0.14, 0.7];
+	let SetS = 96;
+	let SetV = 98;
+	let SetL = 50;
+
+
+	let SetIndex = 0;
 	for(let i = 0; i < NumGraphs; ++i)
 	{
 		Params.Rect = WindowRect(0, y, w, GraphHeight);
 		let Data = [];
-		let GraphIndices = Graphs[i];
+		let GraphColumns = Graphs[i];
 		let GraphMode = GraphModes[i];
-		for(let Index in GraphIndices)
+		for(let SetName in CSVSets)
 		{
-			if(GraphIndices[Index] && CSVMenuItems[Index])
+			let Set = CSVSets[SetName];
+			let ColumnIndex = 0;
+			for(let ColumnName in GraphColumns)
 			{
-				let ItemData = CSVMenuItems[Index].Data;
-				for(let j = 0; j < 8; ++j)
+
+				if(GraphColumns[ColumnName] == 1 && Set.ColumnNames[ColumnName])
 				{
-					if(0 != (GraphMode &(1<<j)))
+					for(let j = 0; j < 8; ++j)
 					{
-						if(j == 0)
-							Data.push(ItemData.Sect);
-						else if(j == 1)
-							Data.push(ItemData.Avg);
-						else if(j == 2)
-							Data.push(ItemData.Min);
-						else if(j == 3)
-							Data.push(ItemData.Max);
-						else if(j == 4)
-							Data.push(ItemData.PercSect);
-						else if(j == 5)
-							Data.push(ItemData.PercAvg);
-						else if(j == 6)
-							Data.push(ItemData.PercMin);
-						else if(j == 7)
-							Data.push(ItemData.PercMax);
+						if(0 != (GraphMode &(1<<j)))
+						{
+							let src = null;
+							if(j == 0)
+								src = Set.GraphDataSect[ColumnName];
+							else if(j == 1)
+								src = Set.GraphDataAvg[ColumnName];
+							else if(j == 2)
+								src = Set.GraphDataMin[ColumnName];
+							else if(j == 3)
+								src = Set.GraphDataMax[ColumnName];
+							else if(j == 4)
+								src = Set.GraphDataPercentileSect[ColumnName];
+							else if(j == 5)
+								src = Set.GraphDataPercentileAvg[ColumnName];
+							else if(j == 6)
+								src = Set.GraphDataPercentileMin[ColumnName];
+							else if(j == 7)
+								src = Set.GraphDataPercentileMax[ColumnName];
+							if(SetColors)
+							{
+								let ColumnPrc = (ColumnIndex % 5) / 4.0;
+								let h = (SetHueBase[SetIndex%3] + SetHueRange[SetIndex%3] * ColumnPrc) * 360;
+								let color = "hsl(" + h + "," + SetS + "%," + SetL + "%)";
+								src.Color = color;
+							}
+							Data.push(src);
+						}
 					}
+					ColumnIndex++;
 				}
 
+				SetIndex ++;
 			}
 		}
 		DrawGraph2(context, Params, Data, Mouse);
@@ -3031,6 +3053,7 @@ function DrawGraphSettingsMenu(context, XBase, Y, width, height)
 
 function DrawCaptureMenu(context)
 {
+	return;
 	MouseInCaptureButton = 0;
 	if(!ShowMenu())
 	{
@@ -4183,13 +4206,23 @@ function ShowPrompt(Title, Value, Type)
 }
 function MeasureArray(v, A, f)
 {
-	var context = CanvasDetailedView.getContext('2d');
-	for(var i = 0; i < A.length; ++i)
+	let context = CanvasDetailedView.getContext('2d');
+	for(let i = 0; i < A.length; ++i)
 	{
-		var s = A[i];
+		let s = A[i];
 		if(f)
 			s=f(s, i);
-		var l = context.measureText(s).width;
+		let l = context.measureText(s).width;
+		v = v < l ? l : v;
+	}
+	return v;
+}
+function MeasureObjectKeys(v, A, f)
+{
+	let context = CanvasDetailedView.getContext('2d');
+	for(let i in A)
+	{
+		let l = context.measureText(i).width;
 		v = v < l ? l : v;
 	}
 	return v;
@@ -4207,7 +4240,7 @@ function CreateMenuState(SizeInfo)
 }
 function DrawMenuElementMouseIn(M)
 {
-	return MouseY >= M.y && MouseY < M.y + BoxHeight;
+	return MouseY >= M.y && MouseY < M.y + BoxHeight && MouseX >= M.x && MouseX <= M.x + M.w;
 }
 function DrawMenuElement(M, Selected, Name, Value, color)
 {
@@ -4449,12 +4482,13 @@ function DrawMenuGraph()
 {
 	let Selection = null;
 	let SizeInfo = {};
-	SizeInfo.h = (CSVMenuItems.length) * BoxHeight;
+	SizeInfo.h = (CSVAllColumns.length) * BoxHeight;
 	let Strings = ["AutoCapture Enabled", "AutoCapture Threshold", "AutoCapture Source", "Capture Length"];
-	let wLeft = MeasureArray(0, Strings);
-	let wRight = 50;
-	wRight = MeasureArray(wRight, ["Frame Time"]);
-	let Width = wLeft + 35 + wRight;
+	let wLeft = 0;//MeasureArray(0, Strings);
+	let wRight = MeasureObjectKeys(20, CSVAllColumns);
+
+//	wRight = MeasureArray(wRight, ["Frame Time"]);
+	let Width = wLeft + wRight;
 
 
 	SizeInfo.w = Width;
@@ -4471,20 +4505,21 @@ function DrawMenuGraph()
 	if(!GraphSet)
 		debugger;
 
-	for(let i = 0; i < CSVMenuItems.length; ++i)
+	for(let CName in CSVAllColumns)
 	{
-		let e = CSVMenuItems[i];
-		let Active = GraphSet[i] == 1;
-		if(DrawMenuElement(M, Active, e.Set, e.Name, 'white'))
+		let Active = GraphSet[CName] == 1;
+		if(DrawMenuElement(M, Active, "", CName, 'white'))
 		{
 			if(Active)
-				GraphSet[i] = 0;
+				GraphSet[CName] = 0;
 			else
-				GraphSet[i] = 1;
+				GraphSet[CName] = 1;
 		}
 	}
 
 	SizeInfo.h = M.y - SizeInfo.y;
+
+	RequestDraw();
 	return SizeInfo;
 }
 
@@ -4524,6 +4559,8 @@ function DrawMenuGraphMode()
 	GraphModes[GraphModeButtonIndex] = GraphModeMask;
 
 	SizeInfo.h = M.y - SizeInfo.y;
+
+	RequestDraw();
 	return SizeInfo;
 
 
@@ -5878,6 +5915,7 @@ function DrawMenu()
 
 function DrawConnectionStatus()
 {
+	return;
 	if(WSConnected && WS && WS.readyState == 1)
 	{
 		if(!ProfileMode)
@@ -6891,6 +6929,7 @@ function WSSendMessage(msgid)
 
 function Connect()
 {
+	return;
 	if(WS && (WS.readyState == 1 || WS.readyState == 0))
 	{
 		WSConnected = WS.readyState == 1;
@@ -8096,9 +8135,37 @@ function CreateCSVSet()
 	Set.FinishedCount = 0;
 	return Set;
 }
+function EnlargeArray(a, size)
+{
+	let count = size - a.length;
+	if(count < 0)
+		debugger;
+	let A = new Array();
+	for(let i = 0; i < count; ++i)
+		A.push(0);
+	for(let i = 0; i < a.length; ++i)
+	{
+		A.push(a[i]);
+	}
+	return A;
+}
+
+function EnlargeAllArrays(set)
+{
+	for(let name in set)
+	{
+		let data = set[name];
+		data.Samples = EnlargeArray(data.Samples, CSVMaxLength);
+		if(data.Samples2)
+			data.Samples2 = EnlargeArray(data.Samples2, CSVMaxLength);
+
+	}
+}
+
 function ParseCSVCheckFinished(Name)
 {
 	let Set = CSVSets[Name];
+
 	console.log("Finished parsing ", Set.FinishedCount, ":", Set.PendingCount);
 	if(Set.FinishedCount == Set.PendingCount)
 	{
@@ -8110,17 +8177,36 @@ function ParseCSVCheckFinished(Name)
 		else
 		{
 			console.log("Done parsing csv files");
-			for(let CName in Set.ColumnNames)
+			let MaxCount = CSVMaxLength;
+			//find the max column length
+			for(let F in Set.Files)
 			{
-				let aggr = {};
-				let MaxCount = 0;
-				console.log("aggr for ", CName);
-				for(let F in Set.Files)
-				{
-					let File = Set.Files[F];
+				let File = Set.Files[F];
+				for(let CName in File.Columns)
 					if(File.Columns[CName])
 						MaxCount = Math.max(MaxCount, File.Columns[CName].length);
-				}
+			}
+			CSVMaxLength = MaxCount;
+			for(let F in Set.Files)
+			{
+				let File = Set.Files[F];
+				for(let CName in File.Columns)
+					if(File.Columns[CName])
+						if(File.Columns[CName].length < MaxCount)
+						{
+							File.Columns[CName] = EnlargeArray(File.Columns[CName], MaxCount);
+						}
+			}
+
+
+			for(let CName in Set.ColumnNames)
+			{
+				CSVAllColumns[CName] = 1;
+				let aggr = {};
+				console.log("aggr for ", CName);
+
+
+
 				let count = new Array(MaxCount);
 				let sum = new Array(MaxCount);
 				let min = new Array(MaxCount);
@@ -8189,19 +8275,35 @@ function ParseCSVCheckFinished(Name)
 				Set.GraphDataPercentileMin[CName] = CreateGraph2Data(min_perc, FullName, color0, GRAPH_DRAW_LINES);
 				Set.GraphDataPercentileMax[CName] = CreateGraph2Data(max_perc, FullName, color0, GRAPH_DRAW_LINES);
 				Set.GraphDataPercentileSect[CName] = CreateGraph2Data(max_perc, FullName, color0, GRAPH_DRAW_SECTION, min_perc);
-				let Data = {};
-				Data.Min = Set.GraphDataMin[CName];
-				Data.Max = Set.GraphDataMax[CName];
-				Data.Avg = Set.GraphDataAvg[CName];
-				Data.Sect = Set.GraphDataSect[CName];
-				Data.PercAvg = Set.GraphDataPercentileAvg[CName];
-				Data.PercMin = Set.GraphDataPercentileMin[CName];
-				Data.PercMax = Set.GraphDataPercentileMax[CName];
-				Data.PercSect = Set.GraphDataPercentileSect[CName];
-				AddCSVMenu(Name, CName, Data);
 
 			}
 
+			for(let SetName in CSVSets)
+			{
+				let Set = CSVSets[SetName];
+				EnlargeAllArrays(Set.GraphDataMin);
+				EnlargeAllArrays(Set.GraphDataMax);
+				EnlargeAllArrays(Set.GraphDataAvg);
+				EnlargeAllArrays(Set.GraphDataSect);
+				EnlargeAllArrays(Set.GraphDataPercentileAvg);
+				EnlargeAllArrays(Set.GraphDataPercentileMin);
+				EnlargeAllArrays(Set.GraphDataPercentileMax);
+				EnlargeAllArrays(Set.GraphDataPercentileSect);
+			}
+
+
+			//enable some default graphs
+			let GraphIndex = 1;
+			for(let Column in CSVAllColumns)
+			{
+				let gs = Graphs[GraphIndex++];
+				if(Object.keys(gs).length == 0)
+				{
+					gs[Column] = 1;
+				}
+				if(GraphIndex >= MAX_GRAPHS)
+					break;
+			}
 			ActivateView(VIEW_CSV);
 		}
 	}
