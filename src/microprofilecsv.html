@@ -208,10 +208,10 @@ var CaptureTriggerDelta = 0;
 let LastDropTarget = null;
 
 
-
+// Begin shared: internal profiling
 var ProfileData = {};
 var ProfileStackTime = [];
-var ProfileStackName = [];
+let ProfileStackName = [];
 var ProfileMode = 0;
 var ProfileRedraw0 = 0;
 var ProfileRedraw1 = 0;
@@ -221,7 +221,28 @@ var ProfileMs = 0;
 var ProfileFpsAggr = 0;
 var ProfileFpsCount = 0;
 var ProfileLastTimeStamp = new Date();
+function CreateEmptyFloatArray(Size)
+{
+	let a = Array(Size);
+	for(let i = 0; i < Size; ++i)
+		a[i] = 0.0;
+	return a;
+}
+function FormatNumber(f, digits)
+{
+	if(digits >= 0)
+		 return ("             " + f.toFixed(digits)).slice(-12).trim();
+	else
+		return f + "";
+}
+
+
+// End shared: internal profiling
+
+
 var PlotfArray = new Array();
+
+
 
 var ConnectionStr = ["\\", "|", "/", "-" ];
 var ConnectionIdx = 0;
@@ -349,6 +370,9 @@ var PresetToLoad;
 var PresetToLoadRO = 0;
 var HelpFade;
 
+let gRange = 1;
+let gOffset = 0;
+
 // CSV Data
 let CSVSets = {};
 let CSVAllColumns = {};
@@ -356,7 +380,7 @@ let CSVIndex = 0;
 let CSVMaxLength = 0;
 //let CSVMenuItems = [];
 
-let MAX_GRAPHS = 3;
+let MAX_GRAPHS = 1;
 let Graphs = new Array(MAX_GRAPHS);
 let GraphModes = new Array(MAX_GRAPHS);
 let NumGraphs = MAX_GRAPHS;
@@ -527,27 +551,18 @@ function ProfileModeClear()
 			Timer.Count = 0;
 			Timer.Time = 0;
 		}
-
-		// ProfileData = new Object();
 		ProfileStackTime = new Array();
 		ProfileStackName = new Array();
+
+		RequestDraw();
 	}
 }
-function ProfileEnter(Name)
+function ProfileEnter(Name, Graph)
 {
 	if(ProfileMode)
 	{
 		ProfileStackTime.push(performance.now());
 		ProfileStackName.push(Name);
-	}
-}
-function ProfileLeave()
-{
-	if(ProfileMode)
-	{
-		var Time = performance.now();
-		var Delta = Time - ProfileStackTime.pop();
-		var Name = ProfileStackName.pop();
 		var Obj = ProfileData[Name];
 		if(!Obj)
 		{
@@ -561,10 +576,25 @@ function ProfileLeave()
 			Obj.AvgTime = 0;
 			Obj.MaxTime = 0;
 			Obj.TotalTime = 0;
+			Obj.Graph = Graph;
+			Obj.GraphData = CreateEmptyFloatArray(120);
 			ProfileData[Name] = Obj;
 		}
-		Obj.Time += Delta;
-		Obj.Count += 1;
+	}
+}
+function ProfileLeave()
+{
+	if(ProfileMode)
+	{
+		let Time = performance.now();
+		let Delta = Time - ProfileStackTime.pop();
+		let Name = ProfileStackName.pop();
+		let Obj = ProfileData[Name];
+		if(Obj)
+		{
+			Obj.Time += Delta;
+			Obj.Count += 1;
+		}
 	}
 }
 
@@ -630,6 +660,7 @@ function ProfileModeDraw(Canvas)
 				Timer.AggrTime = 0;
 				Timer.AggrMax = 0;
 			}
+			PushIntoArray(Timer.GraphData, Timer.Time);
 			StringArray.push(Timer.Name);
 			StringArray.push(FormatStr(Timer.Time, Timer.Count, Timer.AvgTime, Timer.MaxTime, Timer.TotalTime));
 		}
@@ -660,6 +691,28 @@ function ProfileModeDraw(Canvas)
 		}
 		ProfileData.Plot = Array();
 		DrawToolTip(StringArray, Canvas, 0, 200);
+
+		let Offset = 0;
+		let Params = CreateDrawGraph2Parameters();
+		Params.Digits = 2;
+		var context = Canvas.getContext("2d");
+		for(let idx in ProfileData)
+		{
+			if(idx == "Plot")
+				continue;
+			let Timer = ProfileData[idx];
+			if(Timer.Graph)
+			{
+				let Mouse = {};
+				Mouse.X = MouseX;
+				Mouse.Y = MouseY;
+				let GraphData = CreateGraph2Data(Timer.GraphData, Timer.Name, ColorFromString(Timer.Name, 75, 65));
+
+				Params.Rect = WindowRect(Offset, nHeight-200, 200, 200);
+	 			DrawGraph2(context, Params, [GraphData], Mouse);
+	 			Offset += 201;
+			}
+		}
 	}
 }
 
@@ -1676,7 +1729,7 @@ function DrawGraphSplit(View, LocalMouseX, LocalMouseY, SubIndex)
 
 function DrawGraphCSV(View, LocalMouseX, LocalMouseY, SubIndex)
 {
-	ProfileEnter("DrawGraphCSV");
+	ProfileEnter("DrawGraphCSV", 1);
 	var Canvas = View.Canvas[View.BackBuffer];
 	var context = Canvas.getContext('2d');
 	context.clearRect(0, 0, View.w, View.h);
@@ -1690,6 +1743,8 @@ function DrawGraphCSV(View, LocalMouseX, LocalMouseY, SubIndex)
 	Mouse.X = LocalMouseX;
 	Mouse.Y = LocalMouseY;
 	Params.Rect = WindowRect(0, 0, w, h);
+	Params.xRange = gRange;
+	Params.xOffset = gOffset;
 
 
 
@@ -7007,6 +7062,13 @@ function MouseHandleDrag()
 					MouseDragActiveXEnd += X;
 				}
 			}
+			else if(MouseDragKeyCtrl)
+			{
+				if(MouseDragY != MouseDragYLast)
+				{
+					ZoomGraph(MouseDragY - MouseDragYLast);
+				}
+			}
 			if(Settings.ViewActive == VIEW_BAR)
 			{
 				if(MouseDragKeyShift || MouseDragButton == 1)
@@ -7262,12 +7324,47 @@ function MouseOut(evt)
 	// RangeCpu = RangeInit();
 }
 
+function ZoomGraph(nZoom)
+{
+	let fOldRange = gRange;
+	let nModDown = 0;
+	if(nZoom>0)
+	{
+		gRange *= Math.pow(nModDown ? 1.40 : 1.03, nZoom);
+	}
+	else
+	{
+		let fNewDetailedRange = gRange / Math.pow((nModDown ? 1.40 : 1.03), -nZoom);
+		if(fNewDetailedRange < 0.0001) //100ns
+			fNewDetailedRange = 0.0001;
+		gRange = fNewDetailedRange;
+	}
+
+	let fDiff = fOldRange - gRange;
+	let fMousePrc = MouseX / nWidth;
+	if(fMousePrc < 0)
+	{
+		fMousePrc = 0;
+	}
+	gOffset += fDiff * fMousePrc;
+	if(gRange > 1)
+	{
+		gRange = 1;
+	}
+	gOffset = Math.max(0, gOffset);
+	if(gOffset + gRange > 1)
+	{
+		gOffset = 1 - gRange;
+	}
+	console.log("OFF ", gOffset, " Range", gRange);
+}
+
 function MouseWheel(e)
 {
-//     var e = window.event || e;
-//     var delta = (e.wheelDelta || e.detail * (-120));
-//     ZoomGraph((-4 * delta / 120.0) | 0);
-//     Draw(1);
+    var e = window.event || e;
+    let delta = (e.wheelDelta || e.detail * (-120));
+	ZoomGraph((-4 * delta / 120.0) | 0);
+	RequestDraw();
 }
 
 function KeyUp(evt)
@@ -7854,13 +7951,51 @@ let GRAPH_DRAW_SECTION = 3;
 function CreateGraph2Data(Samples, Name, Color, Mode, Samples2)
 {
 	let gd = {};
+	let min = 1e38;
+	let max = 0;
 	gd.Samples = Samples;
 	gd.Samples2 = Samples2;
+	for(let i = 0; i < Samples.length; ++i)
+	{
+		min = Math.min(min, Samples[i]);
+		max = Math.max(max, Samples[i]);
+	}
+	if(Samples2)
+	{
+		for(let i = 0; i < Samples2.length; ++i)
+		{
+			min = Math.min(min, Samples2[i]);
+			max = Math.max(max, Samples2[i]);
+		}
+	}
+	gd.Min = min;
+	gd.Max = max;
 	gd.Name = Name;
 	gd.Color = Color;
 	gd.Mode = Mode;
 	return gd;
 }
+
+
+// for(let i in data)
+// 	{
+// 		let d = data[i];
+// 		MaxLen = Math.max(MaxLen, d.Samples.length);
+// 		for(let j in d.Samples)
+// 		{
+// 			MaxSample = Math.max(MaxSample, d.Samples[j]);
+// 			MinSample = Math.min(MinSample, d.Samples[j]);
+// 		}
+// 		if(d.Samples2)
+// 		{
+// 			for(let j in d.Samples2)
+// 			{
+// 				MaxSample = Math.max(MaxSample, d.Samples2[j]);
+// 				MinSample = Math.min(MinSample, d.Samples2[j]);
+// 			}
+// 		}
+// 	}
+
 
 function CreateDrawGraph2Parameters()
 {
@@ -7872,7 +8007,10 @@ function CreateDrawGraph2Parameters()
 	P.Ext = "ms";
 	P.Border = 2;
 	P.Frame = 1;
+	P.Digits = -1;
 	P.DrawMode = GRAPH_DRAW_FILLED;
+	P.xRange = 1;
+	P.xOffset = 0;
 
 	return P;
 }
@@ -7885,26 +8023,72 @@ function DrawGraph2(context, Parameters, data, Mouse)
 	let Rect = Parameters.Rect;
 	let RangeMin = Parameters.RangeMin;
 	let RangeMax = Parameters.RangeMax;
+	let xRangeFloat = Parameters.xRange;
+	let xOffsetFloat = Parameters.xOffset;
 	let MaxLen = 0;
 	let MaxSample = 0;
 	let MinSample = 1e25;
+	let xOffset = 0;
+	let xRange = 0;
+
 	for(let i in data)
 	{
 		let d = data[i];
-		MaxLen = Math.max(MaxLen, d.Samples.length);
-		for(let j in d.Samples)
+		if(MaxLen == 0)
 		{
-			MaxSample = Math.max(MaxSample, d.Samples[j]);
-			MinSample = Math.min(MinSample, d.Samples[j]);
+			MaxLen = d.Samples.length;
+			if(xRangeFloat >= 1.0)
+			{
+				xOffset = 0;
+				xRange = MaxLen;
+			}
+			else
+			{
+				xOffset = Math.floor(xOffsetFloat * MaxLen);
+				xRange = Math.floor(xRangeFloat * MaxLen);
+			}
+
 		}
+		if(!d.Samples.length == MaxLen)
+			debugger;
+		MaxLen = Math.max(MaxLen, d.Samples.length);
 		if(d.Samples2)
 		{
-			for(let j in d.Samples2)
-			{
-				MaxSample = Math.max(MaxSample, d.Samples2[j]);
-				MinSample = Math.min(MinSample, d.Samples2[j]);
-			}
+			if(!d.Samples2.length == MaxLen)
+				debugger;
 		}
+
+		//calc rangemin/max only on change
+ 		if(xOffset != 0 || xRange != MaxLen)
+ 		{
+			if(!d.RangeMinMax || d.RangeMinMax.Offset != xOffset || d.RangeMinMax.Range != xRange)
+			{
+				d.RangeMinMax = {};
+				d.RangeMinMax.Offset = xOffset;
+				d.RangeMinMax.Range = xRange;
+				let LocalMax = 0;
+				let LocalMin = 1e25;
+				for(let i = 0; i < xRange; ++ i)
+				{
+					LocalMax = Math.max(LocalMax, d.Samples[i + xOffset]);
+					LocalMin = Math.min(LocalMin, d.Samples[i + xOffset]);
+					if(d.Samples2)
+					{
+						LocalMax = Math.max(LocalMax, d.Samples2[i + xOffset]);
+						LocalMin = Math.min(LocalMin, d.Samples2[i + xOffset]);
+					}
+				}
+				d.RangeMinMax.LocalMin = LocalMin;
+				d.RangeMinMax.LocalMax = LocalMax;
+			}
+			MaxSample = Math.max(d.RangeMinMax.LocalMax, MaxSample);
+			MinSample = Math.min(d.RangeMinMax.LocalMin, MinSample);
+ 		}
+ 		else
+ 		{
+			MaxSample = Math.max(d.Max, MaxSample);
+			MinSample = Math.min(d.Min, MinSample);
+ 		}
 	}
 	if(0 == MaxLen)
 		return;
@@ -7937,34 +8121,34 @@ function DrawGraph2(context, Parameters, data, Mouse)
 	let MouseY = Mouse.Y-y;
 	let MouseInside = Mouse.X >= x && Mouse.Y >= y && Mouse.X < x + w && Mouse.Y < y + h;
 	let MouseXPrc = (Mouse.X - x) / (w-1);
-
 	context.clearRect(wx, wy, ww, wh);
 
-
-	let SampleWidth = w / (MaxLen-1);
-	let MouseIndex = Math.max(0, Math.min(MaxLen-1, Math.floor(MouseXPrc * MaxLen)));
+	let SampleWidth = w / (xRange-1);
+	let MouseIndex = Math.max(0, Math.min(MaxLen-1, xOffset + Math.floor(MouseXPrc * xRange)));
 
 	let HeightScale = h / (RangeMax-RangeMin);
 	let Y = y + h;
 	let YStart = Y;
 	let GRAPH_ALPHA = 0.2;
 	let SECTION_ALPHA = 0.3;
+	let MouseDrawX;
 	for(let dataindex in data)
 	{
 		let LocalElement = data[dataindex];
 		let Samples = LocalElement.Samples;
 		let Samples2 = LocalElement.Samples2;
 		let Mode = LocalElement.Mode;
-		let X = x + w - (Samples.length-1)*SampleWidth;
+		let X = x + w - (xRange-1)*SampleWidth;
 		Y = y + h;
 
 		context.globalAlpha = 1;
 		context.strokeStyle = LocalElement.Color;
 		context.fillStyle = LocalElement.Color;
 		context.beginPath();
-		for(let i = 0; i < Samples.length; ++i)
+		for(let i = 0; i < xRange; ++i)
 		{
-			Y = Math.max(YStart - Samples[i] * HeightScale, y);
+			let idx = xOffset + i;
+			Y = Math.max(YStart - Samples[idx] * HeightScale, y);
 			if(i == 0)
 				context.moveTo(X, Y);
 			else
@@ -7977,13 +8161,11 @@ function DrawGraph2(context, Parameters, data, Mouse)
 		{
 			if(!Samples2)
 				debugger;
-			if(Samples2.length != Samples.length)
-				debugger;
 			let len = Samples2.length;
-			for(let i = 0; i < len; ++i)
+			for(let i = 0; i < xRange; ++i)
 			{
 				X -= SampleWidth;
-				let I = len - i - 1;
+				let I = xOffset + xRange - i - 1;
 				Y = Math.max(YStart - Samples2[I] * HeightScale, y);
 				context.lineTo(X, Y);
 			}
@@ -8005,7 +8187,8 @@ function DrawGraph2(context, Parameters, data, Mouse)
 			{
 				let MouseSample = Samples[MouseIndex];
 				let Y = Math.max(YStart - MouseSample * HeightScale, y);
-				let X = x + w + (MouseIndex - (Samples.length-1))*SampleWidth;
+				let X = x + w + (MouseIndex - (xOffset + xRange-1))*SampleWidth;
+				MouseDrawX = X;
 
 				context.globalAlpha = 0.8;
 				context.beginPath();
@@ -8026,7 +8209,7 @@ function DrawGraph2(context, Parameters, data, Mouse)
 	context.fillStyle = 'wheat';
 	context.strokeStyle = 'wheat';
 	context.textAlign='right';
-	context.fillText(RangeMax + Ext, x+w, y + FontHeight);
+	context.fillText(FormatNumber(RangeMax, Parameters.Digits) + Ext, x+w, y + FontHeight);
 	for(let m in Parameters.Mark)
 	{
 		let Sample = Parameters.Mark[m];
@@ -8055,6 +8238,8 @@ function DrawGraph2(context, Parameters, data, Mouse)
 		context.lineTo(x+w+5, YStart);
 		context.stroke();
 
+
+
 		context.beginPath();
 		context.moveTo(x, YStart+5);
 		context.lineTo(x, YStart-h-5);
@@ -8064,6 +8249,18 @@ function DrawGraph2(context, Parameters, data, Mouse)
 		context.moveTo(x, YStart-h);
 		context.lineTo(x-5, YStart-h);
 		context.stroke();
+
+
+		context.textAlign= "right";
+		context.fillText((xRange+xOffset) + '', x+w, YStart+FontHeight);
+		if(MouseDrawX)
+		{
+			context.textAlign= "right";
+			context.fillText((MouseIndex) + '', MouseDrawX, YStart+FontHeight);
+		}
+
+		context.textAlign= "left";
+		context.fillText(xOffset + '', x+2, YStart+FontHeight);
 	}
 
 	let localindex = 0;
@@ -8293,9 +8490,15 @@ function ParseCSVCheckFinished(Name)
 
 
 			//enable some default graphs
-			let GraphIndex = 1;
+			let GraphIndex = 0;
+			let first = 1;
 			for(let Column in CSVAllColumns)
 			{
+				if(first)
+				{
+					first = 0;
+					continue;
+				}
 				let gs = Graphs[GraphIndex++];
 				if(Object.keys(gs).length == 0)
 				{
@@ -8305,6 +8508,7 @@ function ParseCSVCheckFinished(Name)
 					break;
 			}
 			ActivateView(VIEW_CSV);
+			RequestDraw();
 		}
 	}
 }
@@ -8495,7 +8699,6 @@ function DragOverHandler(ev)
 }
 
 
-
 ReadCookie();
 ParseUrl();
 ResizeCanvas();
@@ -8506,7 +8709,15 @@ window.addEventListener("dragleave", WindowDragLeave);
 setInterval(Connect, 100);
 RequestDraw();
 
-
+//
+// delete other code
+// tooltip
+// perf
+// spike mode
+// draw only one
+// fix markers oob
 </script>
 </body>
 </html>
+
+
