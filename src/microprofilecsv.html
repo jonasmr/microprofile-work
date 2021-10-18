@@ -378,11 +378,16 @@ let CSVSets = {};
 let CSVAllColumns = {};
 let CSVIndex = 0;
 let CSVMaxLength = 0;
+let CSVNumSets = 0;
+let CSVSetNames = [];
+let CSVActiveSet = 0;
+
+
 //let CSVMenuItems = [];
 
 let MAX_GRAPHS = 5;
 let Graphs = new Array(MAX_GRAPHS);
-let GraphModes = new Array(MAX_GRAPHS);
+let GraphModeMask = 1 | 2;
 let NumGraphs = MAX_GRAPHS;
 
 let MouseInGraphButton = 0;
@@ -400,7 +405,6 @@ let GraphModeButtonY = 0;
 for(let i = 0; i < MAX_GRAPHS; ++i)
 {
 	Graphs[i] = {};
-	GraphModes[i] = 1|2;
 }
 
 
@@ -1764,57 +1768,60 @@ function DrawGraphCSV(View, LocalMouseX, LocalMouseY, SubIndex)
 	let SetL = 50;
 
 
-	let SetIndex = 0;
 	for(let i = 0; i < NumGraphs; ++i)
 	{
 		Params.Rect = WindowRect(0, y, w, GraphHeight);
 		let Data = [];
 		let GraphColumns = Graphs[i];
-		let GraphMode = GraphModes[i];
-		for(let SetName in CSVSets)
+		let GraphMode = GraphModeMask;
+		for(let SetIndex = 0; SetIndex < CSVSetNames.length; ++SetIndex)
 		{
-			let Set = CSVSets[SetName];
-			let ColumnIndex = 0;
-			for(let ColumnName in GraphColumns)
+			if(SetIndex == (CSVActiveSet-1) || CSVActiveSet == 0)
 			{
-
-				if(GraphColumns[ColumnName] == 1 && Set.ColumnNames[ColumnName])
+				let SetName = CSVSetNames[SetIndex];
+				let Set = CSVSets[SetName];
+				if(!Set.Ready)
+					continue;
+				let ColumnIndex = 0;
+				for(let ColumnName in GraphColumns)
 				{
-					for(let j = 0; j < 8; ++j)
-					{
-						if(0 != (GraphMode &(1<<j)))
-						{
-							let src = null;
-							if(j == 0)
-								src = Set.GraphDataSect[ColumnName];
-							else if(j == 1)
-								src = Set.GraphDataAvg[ColumnName];
-							else if(j == 2)
-								src = Set.GraphDataMin[ColumnName];
-							else if(j == 3)
-								src = Set.GraphDataMax[ColumnName];
-							else if(j == 4)
-								src = Set.GraphDataPercentileSect[ColumnName];
-							else if(j == 5)
-								src = Set.GraphDataPercentileAvg[ColumnName];
-							else if(j == 6)
-								src = Set.GraphDataPercentileMin[ColumnName];
-							else if(j == 7)
-								src = Set.GraphDataPercentileMax[ColumnName];
-							if(SetColors)
-							{
-								let ColumnPrc = (ColumnIndex % 5) / 4.0;
-								let h = (SetHueBase[SetIndex%3] + SetHueRange[SetIndex%3] * ColumnPrc) * 360;
-								let color = "hsl(" + h + "," + SetS + "%," + SetL + "%)";
-								src.Color = color;
-							}
-							Data.push(src);
-						}
-					}
-					ColumnIndex++;
-				}
 
-				SetIndex ++;
+					if(GraphColumns[ColumnName] == 1 && Set.ColumnNames[ColumnName])
+					{
+						for(let j = 0; j < 8; ++j)
+						{
+							if(0 != (GraphMode &(1<<j)))
+							{
+								let src = null;
+								if(j == 0)
+									src = Set.GraphDataSect[ColumnName];
+								else if(j == 1)
+									src = Set.GraphDataAvg[ColumnName];
+								else if(j == 2)
+									src = Set.GraphDataMin[ColumnName];
+								else if(j == 3)
+									src = Set.GraphDataMax[ColumnName];
+								else if(j == 4)
+									src = Set.GraphDataPercentileSect[ColumnName];
+								else if(j == 5)
+									src = Set.GraphDataPercentileAvg[ColumnName];
+								else if(j == 6)
+									src = Set.GraphDataPercentileMin[ColumnName];
+								else if(j == 7)
+									src = Set.GraphDataPercentileMax[ColumnName];
+								if(SetColors)
+								{
+									let ColumnPrc = (ColumnIndex % 5) / 4.0;
+									let h = (SetHueBase[SetIndex%3] + SetHueRange[SetIndex%3] * ColumnPrc) * 360;
+									let color = "hsl(" + h + "," + SetS + "%," + SetL + "%)";
+									src.Color = color;
+								}
+								Data.push(src);
+							}
+						}
+						ColumnIndex++;
+					}
+				}
 			}
 		}
 		DrawGraph2(context, Params, Data, Mouse);
@@ -3214,25 +3221,53 @@ function DrawRootGraphMenuElement(context)
 
 		X += w + 10;
 
-		Text = "Mode";
-		w = 10 + context.measureText(Text).width;
-		XCenter = X + w / 2;
-		Inside = MouseInside(X, Y, w, 4 + FontHeight) ;
-
-		context.textAlign = 'center';
-		context.fillStyle = Inside ? nBackColors[1] : 'black';
-		context.fillRect(X, Y, w, 4 + FontHeight);
-		context.fillStyle = '#ffffff';
-		context.fillText(Text, XCenter, Y + FontHeight);
-		context.textAlign = '';
-
-		if(Inside)
+		if(i == 0)
 		{
-			MouseInGraphModeButton = i;
-			GraphModeButtonX = X + 2;
-			GraphModeButtonY = Y + FontHeight + 2;
-			GraphModeButtonIndex = MouseInGraphModeButton;
-			EnableMenu(SubMenuGraphMode);
+			Text = "Mode";
+			w = 10 + context.measureText(Text).width;
+			XCenter = X + w / 2;
+			Inside = MouseInside(X, Y, w, 4 + FontHeight) ;
+
+			context.textAlign = 'center';
+			context.fillStyle = Inside ? nBackColors[1] : 'black';
+			context.fillRect(X, Y, w, 4 + FontHeight);
+			context.fillStyle = '#ffffff';
+			context.fillText(Text, XCenter, Y + FontHeight);
+			context.textAlign = '';
+
+			if(Inside)
+			{
+				MouseInGraphModeButton = i;
+				GraphModeButtonX = X + 2;
+				GraphModeButtonY = Y + FontHeight + 2;
+				GraphModeButtonIndex = MouseInGraphModeButton;
+				EnableMenu(SubMenuGraphMode);
+			}
+
+			X += w + 10;
+
+			if(CSVNumSets > 1)
+			{
+				let Text = "Set: " + (CSVActiveSet == 0 ? "All" : CSVSetNames[CSVActiveSet-1]);
+				w = 10 + context.measureText(Text).width;
+				XCenter = X + w / 2;
+				Inside = MouseInside(X, Y, w, 4 + FontHeight) ;
+
+				context.textAlign = 'center';
+				context.fillStyle = Inside ? nBackColors[1] : 'black';
+				context.fillRect(X, Y, w, 4 + FontHeight);
+				context.fillStyle = '#ffffff';
+				context.fillText(Text, XCenter, Y + FontHeight);
+				context.textAlign = '';
+
+				if(Inside && MouseReleased)
+				{
+					CSVActiveSet = (CSVActiveSet + 1) % (CSVNumSets+1);
+					RequestDraw();
+				}
+			}
+
+
 		}
 		y += ydelta;
 	}
@@ -3299,22 +3334,22 @@ function DrawViews()
 	ProfileLeave();
 	var context = CanvasDetailedView.getContext('2d');
 	context.clearRect(0, 0, nWidth, nHeight);
-	ProfileEnter("BlitViews");
+	ProfileEnter("BlitViews",1);
 	for(var i = 0; i < Views.length; ++i)
 	{
 		var View = Views[i];
 		if(View.visible)
 		{
-			context.drawImage(View.Canvas[View.BackBuffer], Math.floor(View.x), Math.floor(View.y), View.w, View.h);
+		context.drawImage(View.Canvas[View.BackBuffer], Math.floor(View.x), Math.floor(View.y), View.w, View.h);
 		}
 	}
-
+	ProfileLeave();
 	DrawCaptureMenu(context);
 	DrawGraphSettingsMenu(context, MainView.x, MainView.y, MainView.w, MainView.h);
 
 	DrawRootGraphMenuElement(context);
 
-	ProfileLeave();
+
 
 }
 var SubMenuGroup = 0;
@@ -4537,12 +4572,13 @@ function DrawMenuGraph()
 {
 	let Selection = null;
 	let SizeInfo = {};
-	SizeInfo.h = (CSVAllColumns.length) * BoxHeight;
-	let Strings = ["AutoCapture Enabled", "AutoCapture Threshold", "AutoCapture Source", "Capture Length"];
-	let wLeft = 0;//MeasureArray(0, Strings);
+	let NumColumns = 0;
+	for(let key in CSVAllColumns)
+		NumColumns++;
+	SizeInfo.h = (NumColumns) * BoxHeight;
+	let wLeft = 0;
 	let wRight = MeasureObjectKeys(20, CSVAllColumns);
 
-//	wRight = MeasureArray(wRight, ["Frame Time"]);
 	let Width = wLeft + wRight;
 
 
@@ -4551,6 +4587,8 @@ function DrawMenuGraph()
 
 	SizeInfo.x = GraphButtonX;
 	SizeInfo.y = GraphButtonY;
+	if(SizeInfo.y + SizeInfo.h > nHeight)
+		SizeInfo.y = nHeight - SizeInfo.h;
 
 	let M = CreateMenuState(SizeInfo);
 	let context = CanvasDetailedView.getContext('2d');
@@ -4565,13 +4603,21 @@ function DrawMenuGraph()
 		let Active = GraphSet[CName] == 1;
 		if(DrawMenuElement(M, Active, "", CName, 'white'))
 		{
-			if(Active)
-				GraphSet[CName] = 0;
-			else
+			if(KeyCtrlDown)
+			{
+				for(let CName2 in CSVAllColumns)
+					GraphSet[CName2] = 0;
 				GraphSet[CName] = 1;
+			}
+			else
+			{
+				if(Active)
+					GraphSet[CName] = 0;
+				else
+					GraphSet[CName] = 1;
+			}
 		}
 	}
-
 	SizeInfo.h = M.y - SizeInfo.y;
 
 	RequestDraw();
@@ -4597,7 +4643,6 @@ function DrawMenuGraphMode()
 	let context = CanvasDetailedView.getContext('2d');
 	context.fillRect(M.x, M.y, Width, SizeInfo.h);
 
-	let GraphModeMask = GraphModes[GraphModeButtonIndex];
 	let Mask = 1;
 	for(let i = 0; i < Strings.length; ++i)
 	{
@@ -4611,7 +4656,6 @@ function DrawMenuGraphMode()
 		}
 		Mask = Mask << 1;
 	}
-	GraphModes[GraphModeButtonIndex] = GraphModeMask;
 
 	SizeInfo.h = M.y - SizeInfo.y;
 
@@ -7451,6 +7495,7 @@ function KeyUp(evt)
 		KeyShiftDown = 0;
 		MouseDragKeyUp();
 	}
+	RequestDraw();
 }
 
 function KeyDown(evt)
@@ -8338,6 +8383,7 @@ function CreateCSVSet()
 	Set.ColumnIndex = 0;
 	Set.PendingCount = 0;
 	Set.FinishedCount = 0;
+	Set.Ready = false;
 	return Set;
 }
 function EnlargeArray(a, size)
@@ -8515,6 +8561,7 @@ function ParseCSVCheckFinished(Name)
 				if(GraphIndex >= MAX_GRAPHS)
 					break;
 			}
+			Set.Ready = true;
 			ActivateView(VIEW_CSV);
 			RequestDraw();
 		}
@@ -8677,6 +8724,8 @@ function DropHandler(ev)
 	let Set = CreateCSVSet();
 	Set.PendingCount++;
 	CSVSets[Set.Name] = Set;
+	CSVSetNames.push(Set.Name);
+	CSVNumSets++;
 	for(let i = 0; i < ev.dataTransfer.files.length; ++i)
 	{
 		let File = ev.dataTransfer.files[i];
@@ -8719,11 +8768,13 @@ RequestDraw();
 
 //
 // delete other code
+//
+//
+// intro/help text
+//
 // tooltip
-// perf
-// spike mode
-// draw only one
-// fix markers oob
+// range selection + info
+//
 </script>
 </body>
 </html>
