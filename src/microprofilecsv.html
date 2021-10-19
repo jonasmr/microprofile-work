@@ -45,7 +45,15 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 </style>
 </head>
 <body style="">
-<div style="visibility:hidden; opacity:0" class="dropzone" ondrop="DropHandler(event);" ondragover="DragOverHandler(event);">drop .csv files to view CSV data</div>
+<div style="visibility:hidden; opacity:0" class="dropzone" ondrop="DropHandler(event);" ondragover="DragOverHandler(event);">
+Drop .csv file to view CSV data.<br>
+Drop multiple .csv files to create a set and view min/max/average<br><br>
+Shortcut Keys:<br>
+h: Show help<br>
+1-5: Toggle no. of graphs<br>
+Mousewheel/Ctrl + mouse up/down: Zoom<br>
+Space: Toggle Set display<br>
+</div>
 <div class="filterinputsearchdiv" id="FilterInputDiv">Filter<br><input type="text" id="FilterInput" class="filterinputsearch"></div>
 <div class="helpstart" id="helpwindow" style="left:20px;top:20px">
 History View:<br>
@@ -363,6 +371,7 @@ var SortColumnMouseOverNext = "";
 
 var KeyShiftDown = 0;
 var KeyCtrlDown = 0;
+var KeyHDown = 0;
 
 var IsFrozen = 0;
 
@@ -7415,6 +7424,14 @@ function KeyUp(evt)
 {
 	var k = evt.keyCode;
 	var InputActive = SubMenuActive == SubMenuTimers || SubMenuActive == SubMenuGroup || SubMenuActive == SubMenuFunctions || SubMenuActive == SubMenuPatched || SubMenuActive == SubMenuModules;
+	if(k == 72)
+	{
+		KeyHDown = 0;
+		UpdateShowHelp();
+	}
+
+
+
 	if(!InputActive)
 	{
 		if(k == 220)
@@ -7444,6 +7461,8 @@ function KeyUp(evt)
 				console.log(JSON.stringify(TimerArray));
 			}
 			WSSendMessage("f");
+
+			CSVActiveSet = (CSVActiveSet + 1) % (CSVNumSets+1);
 		}
 		if(k == 88)
 		{
@@ -7501,6 +7520,11 @@ function KeyUp(evt)
 function KeyDown(evt)
 {
 	// console.log("keydow ", k);
+	if(evt.keyCode == 72)
+	{
+		KeyHDown = 1;
+		UpdateShowHelp();
+	}
 	if(evt.keyCode == 17)
 	{
 		KeyCtrlDown = 1;
@@ -8699,26 +8723,37 @@ function ReadCSVFile(Set, File)
 
 }
 
+function UpdateShowHelp(ForceShow)
+{
+	if(ForceShow || KeyHDown)
+	{
+	    document.querySelector(".dropzone").style.visibility = "";
+	    document.querySelector(".dropzone").style.opacity = 1;
+	}
+	else
+	{
+        document.querySelector(".dropzone").style.visibility = "hidden";
+        document.querySelector(".dropzone").style.opacity = 0;
+	}
+}
+
 // magic from stack-overflow somewhere..
 function WindowDragEnter(e)
 {
     LastDropTarget = e.target;
-    document.querySelector(".dropzone").style.visibility = "";
-    document.querySelector(".dropzone").style.opacity = 1;
+    UpdateShowHelp(1);
 };
 
 function WindowDragLeave(e)
 {
     if(e.target === LastDropTarget || e.target === document)
     {
-        document.querySelector(".dropzone").style.visibility = "hidden";
-        document.querySelector(".dropzone").style.opacity = 0;
+    	UpdateShowHelp(0);
     }
 };
 function DropHandler(ev)
 {
-	document.querySelector(".dropzone").style.visibility = "hidden";
-	document.querySelector(".dropzone").style.opacity = 0;
+	UpdateShowHelp(0);
 	LastDropTarget = null;
 
 	let Set = CreateCSVSet();
@@ -8763,6 +8798,7 @@ SetupEvents();
 InitMenu();
 window.addEventListener("dragenter", WindowDragEnter);
 window.addEventListener("dragleave", WindowDragLeave);
+UpdateShowHelp(1);
 setInterval(Connect, 100);
 RequestDraw();
 
