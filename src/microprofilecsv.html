@@ -47,11 +47,15 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 <body style="">
 <div style="visibility:hidden; opacity:0" class="dropzone" ondrop="DropHandler(event);" ondragover="DragOverHandler(event);">
 Drop .csv file to view CSV data.<br>
-Drop multiple .csv files to create a set and view min/max/average<br><br>
+Drop multiple .csv files to create a set and view min/max/average<br>
+Include .mp4 file to show video<br>
+Drop multiple sets of .csv/.mp4 files to compare averages/min/max<br>
+<br>
 h: Show help<br>
 1-5: Toggle no. of graphs<br>
 Mousewheel/Ctrl + mouse up/down: Zoom<br>
 Left Mouse + mouse left/right: Pan<br>
+Right Mouse + mouse left/right: Show Range info
 Space: Toggle Set display<br>
 </div>
 <div class="filterinputsearchdiv" id="FilterInputDiv">Filter<br><input type="text" id="FilterInput" class="filterinputsearch"></div>
@@ -419,6 +423,8 @@ for(let i = 0; i < MAX_GRAPHS; ++i)
 	RangeToolTips[i] = {};
 }
 
+const VideoTrackHeight = 200;
+let gMouseXPrc = 0;
 
 
 
@@ -849,6 +855,24 @@ function InvalidGraphCSV(View, LocalMouseX, LocalMouseY, SubIndex)
 	return gGraphCSVInvalid;
 }
 
+
+function GraphCSVParameters(FullUpdate, View, LocalMouseX, LocalMouseY)
+{
+	let h = View.h;
+	let w = View.w;
+
+
+	let Params = CreateDrawGraph2Parameters();
+	Params.Ext = "";
+	Params.Digits = 5;
+	Params.Rect = WindowRect(0, 0, w, h);
+	Params.xRange = gRange;
+	Params.xOffset = gOffset;
+	Params.FullDraw = FullUpdate;
+	Params.Frame = gDrawFrame ? 1 : 0;
+	return Params;
+}
+
 function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouseY, SubIndex)
 {
 	ProfileEnter("DrawGraphCSV", 1);
@@ -859,23 +883,22 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 	}
 
 
-	var h = View.h;
-	var w = View.w;
+	let h = View.h;
+	let w = View.w;
+	if(HasVideoTrack())
+	{
+		h -= VideoTrackHeight;
+	}
 
 
-	let Params = CreateDrawGraph2Parameters();
-	Params.Ext = "";
-	Params.Digits = 5;
+
+
+	let Params = GraphCSVParameters(FullUpdate, View, LocalMouseX, LocalMouseY);
 	let Mouse = {};
 	Mouse.X = LocalMouseX;
 	Mouse.Y = LocalMouseY;
-	Params.Rect = WindowRect(0, 0, w, h);
-	Params.xRange = gRange;
-	Params.xOffset = gOffset;
-	Params.FullDraw = FullUpdate;
-	Params.Frame = gDrawFrame ? 1 : 0;
 
-
+	gMouseXPrc = Graph2MouseXPrc(Params, Mouse) * Params.xRange + Params.xOffset;
 
 
 	let GraphHeight = h / NumGraphs;
@@ -4332,6 +4355,86 @@ function DrawMenu()
 		ProfileLeave();
 	}
 }
+function HasVideoTrack()
+{
+	for(let i in CSVSetNames)
+	{
+		let Name = CSVSetNames[i];
+		let Set = CSVSets[Name];
+		if(Set.VideoValid)
+		{
+			return true;
+		}
+	}
+}
+
+function DrawVideo()
+{
+	let ForceRedraw = false;
+	let context = CanvasDetailedView.getContext('2d');
+	let Videos = [];
+	let w = [];
+	let h = [];
+	let total = 0;
+	const DrawHeight = VideoTrackHeight;
+	for(let i = 0; i < CSVSetNames.length; ++i)
+	{
+		if(i == (CSVActiveSet-1) || CSVActiveSet == 0)
+		{
+			let Name = CSVSetNames[i];
+			let Set = CSVSets[Name];
+			if(Set.VideoValid)
+			{
+				let v = Set.Video;
+				let s = v.seekable;
+				if(s.length > 0) 
+				{
+					let endtime = 0;
+					for(let i = 0; i < s.length; ++i)
+					{
+						let s0 = s.start(i);
+						let s1 = s.end(i);
+						endtime = s1;
+					}
+					const time = gMouseXPrc * endtime;
+					if(endtime > 0 && !v.seeking && time != v.currentTime)
+					{
+						v.playbackRate = 0;
+						v.currentTime = time;
+					}
+					let width = v.videoWidth;
+					let height = v.videoHeight;
+
+					let DrawWidth = DrawHeight * width / height;
+					total += DrawWidth + 1;
+					Videos.push(v);
+					w.push(DrawWidth);
+					h.push(DrawHeight);				
+					if(v.seeking)
+					{
+						RequestDraw();
+					}
+				}
+				else
+				{
+					gGraphCSVInvalid = 1;
+					RequestDraw();
+				}
+			}
+		}
+	}
+	let DrawPosX = MouseX - total / 2;
+	let DrawPosY = nHeight - DrawHeight;
+
+	DrawPosX = Math.max(0, Math.min(nWidth-total, DrawPosX));
+	for(let i = 0; i < Videos.length; ++i)
+	{
+		let v = Videos[i];
+		context.drawImage(v, DrawPosX, DrawPosY, w[i], h[i]);
+		DrawPosX += w[i] + 1;
+	}
+}
+
 
 function DrawActiveToolTip()
 {
@@ -4384,6 +4487,8 @@ function Draw()
 	}
 
 	DrawPlotf(CanvasDetailedView);
+
+	DrawVideo();
 	DrawActiveToolTip();
 
 
@@ -4744,6 +4849,7 @@ function MouseOut(evt)
 	MouseDrag(MouseDragOff, evt);
 	KeyCtrlDown = 0;
 	KeyShiftDown = 0;
+	RequestDraw();
 }
 function ClampRangeOffset()
 {
@@ -4870,7 +4976,6 @@ function KeyUp(evt)
 
 function KeyDown(evt)
 {
-	// console.log("keydow ", k);
 	if(evt.keyCode == 72)
 	{
 		KeyHDown = 1;
@@ -5383,7 +5488,24 @@ function DrawGraph2Range(context, Params, Range, ColorBack, ColorFront, Name, Of
 	return Offset;
 }
 
-
+function Graph2MouseXPrc(Parameters, Mouse)
+{
+	let Rect = Parameters.Rect;
+	let Ext = Parameters.Ext;
+	let Border = Parameters.Border;
+	let Frame = Parameters.Frame;
+	if(Frame)
+		Border += 10;
+	let x = Rect.x + Border;
+	let y = Rect.y + Border;
+	let h = Rect.h - 2*Border;
+	let w = Rect.w - 2*Border;
+	
+	let MouseX = Mouse.X-x;
+	let MouseY = Mouse.Y-y;
+	let MouseXPrc = (Mouse.X - x) / (w-1);
+	return Math.max(0.0, Math.min(1.0, MouseXPrc));
+}
 
 function DrawGraph2(context, Parameters, data, Mouse, OutMouseIndex)
 {
@@ -5763,7 +5885,6 @@ function ParseCSVCheckFinished(Name)
 		}
 		else
 		{
-			console.log("Done parsing csv files");
 			let MaxCount = CSVMaxLength;
 			//find the max column length
 			for(let F in Set.Files)
@@ -5790,10 +5911,6 @@ function ParseCSVCheckFinished(Name)
 			{
 				CSVAllColumns[CName] = 1;
 				let aggr = {};
-				console.log("aggr for ", CName);
-
-
-
 				let count = new Array(MaxCount);
 				let sum = new Array(MaxCount);
 				let min = new Array(MaxCount);
@@ -6058,6 +6175,7 @@ function WindowDragEnter(e)
     UpdateShowHelp(1);
 };
 
+
 function WindowDragLeave(e)
 {
     if(e.target === LastDropTarget || e.target === document)
@@ -6065,16 +6183,36 @@ function WindowDragLeave(e)
     	UpdateShowHelp(0);
     }
 };
+
+function ReadMp4File(Set, File)
+{
+	if(!Set.Video)
+	{
+		let v = document.createElement('Video');
+		Set.Video = v;
+		v.file = File;
+		v.autoplay = true;
+		v.preload = 'auto';
+		v.muted = true;
+		let reader = new FileReader();
+		reader.onload = function(e) {
+			v.src = e.target.result;
+			Set.VideoValid = true;
+			gGraphCSVInvalid = 1;
+			RequestDraw();
+			console.log("loaded Video");
+		};
+		reader.readAsDataURL(File);
+	}
+}
+
 function DropHandler(ev)
 {
 	UpdateShowHelp(0);
 	LastDropTarget = null;
-
-	let Set = CreateCSVSet();
-	Set.PendingCount++;
-	CSVSets[Set.Name] = Set;
-	CSVSetNames.push(Set.Name);
-	CSVNumSets++;
+	let VideoAlert = false;
+	let CsvCount = 0;
+	let Mp4Count = 0;
 	for(let i = 0; i < ev.dataTransfer.files.length; ++i)
 	{
 		let File = ev.dataTransfer.files[i];
@@ -6083,19 +6221,63 @@ function DropHandler(ev)
 		let Ext = ExtMatch ? ExtMatch[0] : "";
 		if(Ext.toLowerCase() == ".csv")
 		{
-			ReadCSVFile(Set, File);
+			CsvCount++;
 		}
-		else
+		else if(Ext.toLowerCase() == ".mp4")
 		{
-			console.log("Not a .csv file!\n" + Name);
+			Mp4Count++;
 		}
 	}
-	if(0 == Set.PendingCount)
+	if(CsvCount == 0 && Mp4Count > 0)
 	{
-		window.alert("No dropped CSV files. Please drop one or more csv files to use csv viewer");
+		//add to previous set.
+		ReadMp4File(CSVSets[CSVSetNames[CSVSetNames.length-1]], ev.dataTransfer.files[0]);
+		
 	}
-	Set.FinishedCount++;
-	ParseCSVCheckFinished(Set.Name);
+	else
+	{
+		let Set = CreateCSVSet();
+		Set.PendingCount++;
+		CSVSets[Set.Name] = Set;
+		CSVSetNames.push(Set.Name);
+		CSVNumSets++;
+		for(let i = 0; i < ev.dataTransfer.files.length; ++i)
+		{
+			let File = ev.dataTransfer.files[i];
+			let Name = File.name;
+			let ExtMatch = Name.match(/\.[0-9a-zA-Z]+$/);
+			let Ext = ExtMatch ? ExtMatch[0] : "";
+			if(Ext.toLowerCase() == ".csv")
+			{
+				ReadCSVFile(Set, File);
+			}
+			else if(Ext.toLowerCase() == ".mp4")
+			{
+				if(!Set.Video)
+				{
+					ReadMp4File(Set, File);
+				}
+				else
+				{
+					if(!VideoAlert)
+					{
+						VideoAlert = true;
+						window.alert("multiple Videos in one set not supported");
+					}
+				}
+			}
+			else
+			{
+				console.log("Not a .csv file!\n" + Name);
+			}
+		}
+		if(0 == Set.PendingCount)
+		{
+			window.alert("No dropped CSV files. Please drop one or more csv files to use csv viewer");
+		}
+		Set.FinishedCount++;
+		ParseCSVCheckFinished(Set.Name);
+	}
   	ev.preventDefault();
 }
 
@@ -6115,9 +6297,6 @@ window.addEventListener("dragleave", WindowDragLeave);
 UpdateShowHelp(1);
 RequestDraw();
 
-//
-// range selection + info
-//
 </script>
 </body>
 </html>
