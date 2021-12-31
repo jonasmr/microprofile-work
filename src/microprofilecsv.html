@@ -2910,9 +2910,40 @@ function DrawMenuGraph()
 		NumColumns++;
 	SizeInfo.h = (NumColumns) * BoxHeight;
 	let wLeft = 0;
-	let wRight = MeasureObjectKeys(20, CSVAllColumns);
+	let wRight = 0;//MeasureObjectKeys(20, CSVAllColumns);
+	let context = CanvasDetailedView.getContext('2d');
+	let data = Array();
+	let LeftCount = 0;
+	let LeftSet = {};
+	for(let i in CSVAllColumns)
+	{
+		let index = i.indexOf('_');
+		let l = '';
+		let r = i;
+		if(index > 0 && index < i.length-1)
+		{
+			l = i.substring(0, index);
+			r = i.substring(index+1);
+		}
+		wLeft = Math.max(wLeft, context.measureText(l).width);
+		wRight = Math.max(wRight, context.measureText(r).width);
+		let element = {};
+		element.l = l;
+		element.r = r;
+		element.CName = i;
+		if(!LeftSet[l])
+		{
+			LeftCount++;
+			LeftSet[l] = 1;
+		}
+		data.push(element);
+	}
+	let comp = function(l, r){ return l.l.localeCompare(r.l);};
+	data.sort(comp);
 
-	let Width = wLeft + wRight;
+	let Width = wLeft + 25 + wRight;
+
+	SizeInfo.h += (LeftCount-1) * BoxHeight;
 
 
 	SizeInfo.w = Width;
@@ -2924,37 +2955,50 @@ function DrawMenuGraph()
 		SizeInfo.y = nHeight - SizeInfo.h;
 
 	let M = CreateMenuState(SizeInfo);
-	let context = CanvasDetailedView.getContext('2d');
 	context.fillRect(M.x, M.y, Width, SizeInfo.h);
 
 	let GraphSet = Graphs[GraphButtonIndex];
 	if(!GraphSet)
 		debugger;
 
-	for(let CName in CSVAllColumns)
+	let i = 0;
+	if(data.length>0)
 	{
-		let Active = GraphSet[CName] == 1;
-		if(DrawMenuElement(M, Active, "", CName, 'white'))
+		let LeftLast = data[0].l;
+		for(let i in data)
 		{
-			if(KeyCtrlDown)
+			let element = data[i];
+			let CName = element.CName;
+			if(LeftLast != element.l)
 			{
-				for(let CName2 in CSVAllColumns)
-					GraphSet[CName2] = 0;
-				GraphSet[CName] = 1;
+				LeftLast = element.l;
+				DrawMenuElement(M, 0, "---", "", 'white', 0);
 			}
-			else
+
+			let Active = GraphSet[CName] == 1;
+			if(DrawMenuElement(M, Active, element.l, element.r, 'white'))
 			{
-				if(Active)
-					GraphSet[CName] = 0;
-				else
+				if(KeyCtrlDown)
+				{
+					for(let CName2 in CSVAllColumns)
+						GraphSet[CName2] = 0;
 					GraphSet[CName] = 1;
+				}
+				else
+				{
+					if(Active)
+						GraphSet[CName] = 0;
+					else
+						GraphSet[CName] = 1;
+				}
+				gGraphCSVInvalid = 1;
+				RangeInvalidate(RangeSelectState);
+
+				Cookie.Graphs = Graphs;
+				WriteCookie();
+
 			}
-			gGraphCSVInvalid = 1;
-			RangeInvalidate(RangeSelectState);
-
-			Cookie.Graphs = Graphs;
-			WriteCookie();
-
+			i++;
 		}
 	}
 	SizeInfo.h = M.y - SizeInfo.y;
@@ -4477,6 +4521,7 @@ function Draw()
 	{
 		DrawViews();
 		DrawMessage();
+		DrawVideo();
 		DrawMenu();
 	}
 	else
@@ -4488,7 +4533,6 @@ function Draw()
 
 	DrawPlotf(CanvasDetailedView);
 
-	DrawVideo();
 	DrawActiveToolTip();
 
 
