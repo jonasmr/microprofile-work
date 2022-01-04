@@ -351,13 +351,13 @@ var SingleTimerBars = 0;
 var History;
 var MainView;
 let CSVView;
-var X7Views;
-var X7LegendView;
-var X7BarColumnRemap = [0,1,2,3,4,5,6];
-var X7BarColumnMask = -1;
-var X7LegendOffset = 25;
-var X7BarLastView = -1;
-var X7BarFirstView = -1;
+// var X7Views;
+// var X7LegendView;
+// var X7BarColumnRemap = [0,1,2,3,4,5,6];
+// var X7BarColumnMask = -1;
+// var X7LegendOffset = 25;
+// var X7BarLastView = -1;
+// var X7BarFirstView = -1;
 
 
 var ViewBarMaxMsTextLength = 0;
@@ -393,7 +393,7 @@ let CSVActiveSet = 0;
 
 let gDrawFrame = 1;
 
-let MAX_GRAPHS = 5;
+let MAX_GRAPHS = 8;
 let Graphs = new Array(MAX_GRAPHS);
 let GraphModeMask = 1 | 2;
 let NumGraphs = MAX_GRAPHS;
@@ -1554,7 +1554,11 @@ function DrawRootGraphMenuElement(context)
 		return;
 	}
 	let y = 0;
-	let ydelta = nHeight / NumGraphs;
+	let h = nHeight;
+	if(HasVideoTrack())
+		h -= VideoTrackHeight;
+
+	let ydelta = h / NumGraphs;
 	for(let i = 0; i < NumGraphs; ++i)
 	{
 		let Text = "Source";
@@ -1635,45 +1639,45 @@ function DrawRootGraphMenuElement(context)
 	}
 }
 
-function UpdateX7Views()
-{
-	if(Settings.ViewActive == VIEW_BAR_SINGLE || Settings.ViewActive == VIEW_BAR_ALL)
-	{
-		var NumSubViews = 0;
-		var BarColumnEnabled = GetBarColumnEnabled();
-		X7BarFirstView = -1;
-		X7BarLastView = -1;
-		var ViewMask = 0;
-		for(var i = 0; i < BarColumnEnabled.length; ++i)
-		{
-			if(BarColumnEnabled[i])
-			{
-				if(X7BarFirstView == -1)
-					X7BarFirstView = i;
-				X7BarColumnRemap[NumSubViews++] = i;
-				ViewMask = ViewMask | (1 << i);
-				X7BarLastView = i;
-			}
-		}
-		if(ViewMask != X7BarColumnMask)
-		{
-			console.log("resizing views");
-			var w = NumSubViews ? nWidth / NumSubViews : 1;
-			for(var i = 0; i < X7Views.length; ++i)
-			{
-				X7Views[i].visible = i < NumSubViews;
-				if(i < NumSubViews)
-				{
-					var HistoryH = Settings.ViewCompressed ? 0 : HistoryHeight;
-					ResizeView(X7Views[i], w*i, HistoryH, w, nHeight - HistoryH);
-				}
-			}
-			X7BarColumnMask = ViewMask;
-		}
-		X7LegendView.visible = true;
-		ReferenceBarAutomatic = 0;
-	}
-}
+// function UpdateX7Views()
+// {
+// 	if(Settings.ViewActive == VIEW_BAR_SINGLE || Settings.ViewActive == VIEW_BAR_ALL)
+// 	{
+// 		var NumSubViews = 0;
+// 		var BarColumnEnabled = GetBarColumnEnabled();
+// 		X7BarFirstView = -1;
+// 		X7BarLastView = -1;
+// 		var ViewMask = 0;
+// 		for(var i = 0; i < BarColumnEnabled.length; ++i)
+// 		{
+// 			if(BarColumnEnabled[i])
+// 			{
+// 				if(X7BarFirstView == -1)
+// 					X7BarFirstView = i;
+// 				X7BarColumnRemap[NumSubViews++] = i;
+// 				ViewMask = ViewMask | (1 << i);
+// 				X7BarLastView = i;
+// 			}
+// 		}
+// 		if(ViewMask != X7BarColumnMask)
+// 		{
+// 			console.log("resizing views");
+// 			var w = NumSubViews ? nWidth / NumSubViews : 1;
+// 			for(var i = 0; i < X7Views.length; ++i)
+// 			{
+// 				X7Views[i].visible = i < NumSubViews;
+// 				if(i < NumSubViews)
+// 				{
+// 					var HistoryH = Settings.ViewCompressed ? 0 : HistoryHeight;
+// 					ResizeView(X7Views[i], w*i, HistoryH, w, nHeight - HistoryH);
+// 				}
+// 			}
+// 			X7BarColumnMask = ViewMask;
+// 		}
+// 		X7LegendView.visible = true;
+// 		ReferenceBarAutomatic = 0;
+// 	}
+// }
 function DrawViews()
 {
 	Plotf("DrawViews");
@@ -2391,21 +2395,21 @@ function ActivateView(idx)
 		MainView.DisplayFunc = DrawCounterView;
 		MainView.visible = true;
 	}
-	else if(idx == VIEW_BAR_SINGLE || idx == VIEW_BAR_ALL)
-	{
-		for(var i = 0; i < X7Views.length; ++i)
-		{
-			X7Views[i].visible = true;
-		}
-		SingleTimerBars = idx == VIEW_BAR_SINGLE;
-	}
+	// else if(idx == VIEW_BAR_SINGLE || idx == VIEW_BAR_ALL)
+	// {
+	// 	for(var i = 0; i < X7Views.length; ++i)
+	// 	{
+	// 		X7Views[i].visible = true;
+	// 	}
+	// 	SingleTimerBars = idx == VIEW_BAR_SINGLE;
+	// }
 	else if(idx == VIEW_CSV)
 	{
 		CSVView.visible = true;
 	}
 
 	Settings.ViewActive = idx;
-	X7BarColumnMask = -1;
+	// X7BarColumnMask = -1;
 	ViewBarMaxMsTextLength  = 0;
 	var hest = 3;
 }
@@ -4503,8 +4507,12 @@ function DrawActiveToolTip()
 	{
 		if(RangeToolTips[i] && RangeToolTips[i].a)
 		{
+			let h = nHeight;
+			if(HasVideoTrack())
+				h -= VideoTrackHeight;
+
 			let yoffset = -BoxHeight * (RangeToolTips[i].a.length / RangeToolTipColumns) / 2;
-			DrawToolTip(RangeToolTips[i], CanvasDetailedView, nWidth, yoffset + (0.5 + i) * nHeight / NumGraphs, RangeToolTipColumns);
+			DrawToolTip(RangeToolTips[i], CanvasDetailedView, nWidth, yoffset + (0.5 + i) * h / NumGraphs, RangeToolTipColumns);
 
 		}
 	}
@@ -5341,7 +5349,12 @@ function ReadCookie()
 		NumGraphs = Cookie.NumGraphs;
 	}
 	if(Cookie.Graphs)
-		Graphs = Cookie.Graphs;
+	{
+		for(let i = 0; i < Cookie.Graphs.length; ++i)
+		{
+			Graphs[i] = Cookie.Graphs[i];
+		}
+	}
 
 }
 function WriteCookie()
