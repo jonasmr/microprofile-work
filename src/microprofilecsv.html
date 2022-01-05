@@ -424,7 +424,9 @@ for(let i = 0; i < MAX_GRAPHS; ++i)
 }
 
 const VideoTrackHeight = 200;
+const AllowTime = 0;
 let gMouseXPrc = 0;
+let gMouseIndex = 0;
 
 
 
@@ -900,6 +902,26 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 
 	gMouseXPrc = Graph2MouseXPrc(Params, Mouse) * Params.xRange + Params.xOffset;
 
+	Params.IndexDesc = function(Index)
+	{
+		let Str = Index + '';
+		for(let SetName in CSVSets)
+		{
+			let Set = CSVSets[SetName];
+			if(Set.TimeData && Set.TimeData.length > Index)
+			{
+
+				let seconds = Set.TimeData[Index];
+				let minutes = Math.floor(seconds/60.0);
+				seconds = seconds - minutes * 60;
+				Str += " " + minutes + ":" + seconds;
+			}
+
+		}
+		return Str;
+
+	}
+
 
 	let GraphHeight = h / NumGraphs;
 	let y = 0;
@@ -1046,6 +1068,7 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 		if(LocalMouseIndex >= 0)
 		{
 			MouseIndex = LocalMouseIndex;
+			gMouseIndex = MouseIndex;
 			SelectedGraphColumns = GraphColumns;
 		}
 		y += GraphHeight;
@@ -4415,6 +4438,15 @@ function HasVideoTrack()
 		}
 	}
 }
+function GetTimeFromIndex(Name, Index)
+{
+	let Set = CSVSets[Name];
+	if(Set.VideoValid && Set.TimeData && Set.TimeData.length > Index)
+	{
+		return Set.TimeData[Index];
+	}
+	return null;
+}
 
 function DrawVideo()
 {
@@ -4444,7 +4476,14 @@ function DrawVideo()
 						let s1 = s.end(i);
 						endtime = s1;
 					}
-					const time = gMouseXPrc * endtime;
+					let time = gMouseXPrc * endtime;
+					if(AllowTime)
+					{
+						let RealTime = GetTimeFromIndex(Name, gMouseIndex);
+						if(RealTime >= 0)
+							time = RealTime;
+					}
+
 					if(endtime > 0 && !v.seeking && time != v.currentTime)
 					{
 						v.playbackRate = 0;
@@ -5817,15 +5856,19 @@ function DrawGraph2(context, Parameters, data, Mouse, OutMouseIndex)
 
 
 			context.textAlign= "right";
-			context.fillText((xRange+xOffset) + '', x+w, YStart+FontHeight);
+			let TextRight = Parameters.IndexDesc ? Parameters.IndexDesc(xRange+xOffset) : (xRange+xOffset) + '';
+			let TextMouse = Parameters.IndexDesc ? Parameters.IndexDesc(MouseIndex) : (MouseIndex) + '';
+			let TextLeft = Parameters.IndexDesc ? Parameters.IndexDesc(xOffset) : (xOffset) + '';
+
+			context.fillText(TextRight, x+w, YStart+FontHeight);
 			if(MouseDrawX)
 			{
 				context.textAlign= "right";
-				context.fillText((MouseIndex) + '', MouseDrawX, YStart+FontHeight);
+				context.fillText(TextMouse, MouseDrawX, YStart+FontHeight);
 			}
 
 			context.textAlign= "left";
-			context.fillText(xOffset + '', x+2, YStart+FontHeight);
+			context.fillText(TextLeft, x+2, YStart+FontHeight);
 		}
 
 
@@ -5851,7 +5894,8 @@ function DrawGraph2(context, Parameters, data, Mouse, OutMouseIndex)
 			if(MouseDrawX)
 			{
 				context.textAlign= "right";
-				context.fillText((MouseIndex) + '', MouseDrawX, YStart+FontHeight);
+				let TextMouse = Parameters.IndexDesc ? Parameters.IndexDesc(MouseIndex) : (MouseIndex) + '';
+				context.fillText(TextMouse, MouseDrawX, YStart+FontHeight);
 			}
 		}
 		if(MouseInside)
@@ -5898,6 +5942,7 @@ function CreateCSVSet()
 	Set.ColumnIndex = 0;
 	Set.PendingCount = 0;
 	Set.FinishedCount = 0;
+	Set.TimeData = null;
 	Set.Ready = false;
 	return Set;
 }
@@ -6140,6 +6185,7 @@ function ParseCSVFile(Set, Result, Name)
 	let File = CreateCSVSetFile(Set, Name);
 	let Lines = Result.split(/\r?\n/);
 	let Headers, Data, DataSorted;
+	let TimeColumn = -1;
 	let Columns = 0;
 	for(let i = 0; i < Lines.length; ++i)
 	{
@@ -6159,6 +6205,8 @@ function ParseCSVFile(Set, Result, Name)
 				DataSorted[j] = new Array();
 
 				let ColumnName = Headers[j];
+				if(ColumnName.toLowerCase() == "time")
+					TimeColumn = j;
 				File.ColumnToIndex[Headers[j]] = j;
 				File.Columns[ColumnName] = Data[j];
 				File.ColumnsSorted[ColumnName] = DataSorted[j];
@@ -6179,11 +6227,37 @@ function ParseCSVFile(Set, Result, Name)
 			}
 		}
 	}
+	let cmp = function(a,b){return a-b;}
 	for(let j = 0; j < Columns; ++j)
 	{
-		DataSorted[j].sort();
+		DataSorted[j].sort(cmp);
 
 	}
+	if(TimeColumn >= 0 && AllowTime)
+	{
+		let TimeData = Data[TimeColumn];
+		let TimeDataSorted = DataSorted[TimeColumn];
+		let fail = false;
+		for(let i = 0; i < TimeData.length; ++i)
+		{
+			if(TimeData[i] != TimeDataSorted[i])
+			{
+				fail = true;
+				break;
+			}
+		}
+		if(fail)
+		{
+			console.log("time row not ascending, ignoring");
+		}
+		else
+		{
+			if(!Set.TimeData || Set.TimeData.length < TimeData.length)
+				Set.TimeData = Data[TimeColumn]; // note: only one time used per set
+		}
+
+	}
+
 	Set.Files[Name] = File;
 	Set.FinishedCount++;
 	ParseCSVCheckFinished(Set.Name);
