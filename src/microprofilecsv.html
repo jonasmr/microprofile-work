@@ -351,14 +351,6 @@ var SingleTimerBars = 0;
 var History;
 var MainView;
 let CSVView;
-// var X7Views;
-// var X7LegendView;
-// var X7BarColumnRemap = [0,1,2,3,4,5,6];
-// var X7BarColumnMask = -1;
-// var X7LegendOffset = 25;
-// var X7BarLastView = -1;
-// var X7BarFirstView = -1;
-
 
 var ViewBarMaxMsTextLength = 0;
 
@@ -370,6 +362,7 @@ var SortColumnMouseOverNext = "";
 var KeyShiftDown = 0;
 var KeyCtrlDown = 0;
 var KeyHDown = 0;
+let KeyZDown = 0;
 
 var IsFrozen = 0;
 
@@ -424,7 +417,7 @@ for(let i = 0; i < MAX_GRAPHS; ++i)
 }
 
 const VideoTrackHeight = 200;
-const AllowTime = 0;
+const AllowTime = 1;
 let gMouseXPrc = 0;
 let gMouseIndex = 0;
 
@@ -908,13 +901,16 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 		for(let SetName in CSVSets)
 		{
 			let Set = CSVSets[SetName];
-			if(Set.TimeData && Set.TimeData.length > Index)
+			if(Set.TimeData)
 			{
-
+				Index = Math.min(Index, Set.TimeData.length-1);
 				let seconds = Set.TimeData[Index];
 				let minutes = Math.floor(seconds/60.0);
 				seconds = seconds - minutes * 60;
-				Str += " " + minutes + ":" + seconds;
+				if(minutes > 0)
+					Str += " " + minutes + "m:" + seconds.toFixed(2) + "s";
+				else
+					Str += " " + seconds.toFixed(2) + "s";
 			}
 
 		}
@@ -1662,45 +1658,7 @@ function DrawRootGraphMenuElement(context)
 	}
 }
 
-// function UpdateX7Views()
-// {
-// 	if(Settings.ViewActive == VIEW_BAR_SINGLE || Settings.ViewActive == VIEW_BAR_ALL)
-// 	{
-// 		var NumSubViews = 0;
-// 		var BarColumnEnabled = GetBarColumnEnabled();
-// 		X7BarFirstView = -1;
-// 		X7BarLastView = -1;
-// 		var ViewMask = 0;
-// 		for(var i = 0; i < BarColumnEnabled.length; ++i)
-// 		{
-// 			if(BarColumnEnabled[i])
-// 			{
-// 				if(X7BarFirstView == -1)
-// 					X7BarFirstView = i;
-// 				X7BarColumnRemap[NumSubViews++] = i;
-// 				ViewMask = ViewMask | (1 << i);
-// 				X7BarLastView = i;
-// 			}
-// 		}
-// 		if(ViewMask != X7BarColumnMask)
-// 		{
-// 			console.log("resizing views");
-// 			var w = NumSubViews ? nWidth / NumSubViews : 1;
-// 			for(var i = 0; i < X7Views.length; ++i)
-// 			{
-// 				X7Views[i].visible = i < NumSubViews;
-// 				if(i < NumSubViews)
-// 				{
-// 					var HistoryH = Settings.ViewCompressed ? 0 : HistoryHeight;
-// 					ResizeView(X7Views[i], w*i, HistoryH, w, nHeight - HistoryH);
-// 				}
-// 			}
-// 			X7BarColumnMask = ViewMask;
-// 		}
-// 		X7LegendView.visible = true;
-// 		ReferenceBarAutomatic = 0;
-// 	}
-// }
+
 function DrawViews()
 {
 	Plotf("DrawViews");
@@ -2418,21 +2376,12 @@ function ActivateView(idx)
 		MainView.DisplayFunc = DrawCounterView;
 		MainView.visible = true;
 	}
-	// else if(idx == VIEW_BAR_SINGLE || idx == VIEW_BAR_ALL)
-	// {
-	// 	for(var i = 0; i < X7Views.length; ++i)
-	// 	{
-	// 		X7Views[i].visible = true;
-	// 	}
-	// 	SingleTimerBars = idx == VIEW_BAR_SINGLE;
-	// }
 	else if(idx == VIEW_CSV)
 	{
 		CSVView.visible = true;
 	}
 
 	Settings.ViewActive = idx;
-	// X7BarColumnMask = -1;
 	ViewBarMaxMsTextLength  = 0;
 	var hest = 3;
 }
@@ -4480,9 +4429,13 @@ function DrawVideo()
 					if(AllowTime)
 					{
 						let RealTime = GetTimeFromIndex(Name, gMouseIndex);
-						if(RealTime >= 0)
+						if(RealTime != null && RealTime >= 0)
+						{
 							time = RealTime;
+							console.log("Setting time to realtime ", time);
+						}
 					}
+					
 
 					if(endtime > 0 && !v.seeking && time != v.currentTime)
 					{
@@ -4514,11 +4467,18 @@ function DrawVideo()
 	let DrawPosY = nHeight - DrawHeight;
 
 	DrawPosX = Math.max(0, Math.min(nWidth-total, DrawPosX));
+	let VideoScale = 1.0;
+	if(KeyZDown)
+	{
+		VideoScale = Math.min(nWidth / total, nHeight / DrawHeight);
+		DrawPosX = 0;
+		DrawPosY = nHeight - DrawHeight * VideoScale;
+	}
 	for(let i = 0; i < Videos.length; ++i)
 	{
 		let v = Videos[i];
-		context.drawImage(v, DrawPosX, DrawPosY, w[i], h[i]);
-		DrawPosX += w[i] + 1;
+		context.drawImage(v, DrawPosX, DrawPosY, VideoScale * w[i], VideoScale * h[i]);
+		DrawPosX += VideoScale * w[i] + 1;
 	}
 }
 
@@ -4940,6 +4900,7 @@ function MouseOut(evt)
 	MouseDrag(MouseDragOff, evt);
 	KeyCtrlDown = 0;
 	KeyShiftDown = 0;
+	KeyZDown = 0;
 	RequestDraw();
 }
 function ClampRangeOffset()
@@ -5062,6 +5023,11 @@ function KeyUp(evt)
 		KeyShiftDown = 0;
 		MouseDragKeyUp();
 	}
+	if(evt.keyCode == 90)
+	{
+		KeyZDown = 0;
+	}
+	gGraphCSVInvalid = 1;
 	RequestDraw();
 }
 
@@ -5082,6 +5048,13 @@ function KeyDown(evt)
 		KeyShiftDown = 1;
 		MouseDragKeyUp();
 	}
+	if(evt.keyCode == 90)
+	{
+		KeyZDown = 1;
+	}
+	gGraphCSVInvalid = 1;
+	RequestDraw();
+
 }
 
 
@@ -5863,8 +5836,13 @@ function DrawGraph2(context, Parameters, data, Mouse, OutMouseIndex)
 			context.fillText(TextRight, x+w, YStart+FontHeight);
 			if(MouseDrawX)
 			{
-				context.textAlign= "right";
-				context.fillText(TextMouse, MouseDrawX, YStart+FontHeight);
+				context.textAlign= "center";
+				let rect = context.measureText(TextMouse);
+				let TextX = MouseDrawX;
+				TextX = Math.max(TextX, x + 0.5 * rect.width);
+				TextX = Math.min(TextX, w - 0.5 * rect.width);
+				context.clearRect(TextX - 0.5 * rect.width ,1+ YStart, rect.width, FontHeight);
+				context.fillText(TextMouse, TextX, YStart+FontHeight);
 			}
 
 			context.textAlign= "left";
@@ -5893,9 +5871,14 @@ function DrawGraph2(context, Parameters, data, Mouse, OutMouseIndex)
 		{
 			if(MouseDrawX)
 			{
-				context.textAlign= "right";
+				context.textAlign= "center";
 				let TextMouse = Parameters.IndexDesc ? Parameters.IndexDesc(MouseIndex) : (MouseIndex) + '';
-				context.fillText(TextMouse, MouseDrawX, YStart+FontHeight);
+				let rect = context.measureText(TextMouse);
+				let TextX = MouseDrawX;
+				TextX = Math.max(TextX, x + 0.5 * rect.width);
+				TextX = Math.min(TextX, ww - 0.5 * rect.width);
+				context.clearRect(TextX - 0.5 * rect.width ,1+ YStart, rect.width, FontHeight);
+				context.fillText(TextMouse, TextX, YStart+FontHeight);
 			}
 		}
 		if(MouseInside)
