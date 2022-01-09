@@ -182,36 +182,6 @@ Settings.TargetTime = 30;
 var TargetTimeTweak = -1;
 
 
-// var AggregateFrames = 60;
-// Settings.AggregateFrames = 60;
-// var AggregatePresets = [0, 10,20,30,60,90,120,500];
-// var AggregateHistorySize = 5;
-// var AggregateTweak = -1;
-// var AggregateCurrent = 0;
-
-// var AutoCaptureCooldown = -1;
-// var AutoCaptureEnabled = 0;
-// var AutoCaptureDefaultThreshold = 66;
-// Settings.AutoCaptureTheshold = AutoCaptureDefaultThreshold;
-// Settings.AutoCaptureRepeat = 1;
-// var AutoCaptureThesholdPresets = [1,3,5,10,15,30,50,66,90,100,250,500,1000];
-// var AutoCaptureRepeatPresets = [1,2,3,4,5,6,7,8,9,10, 25, 50, 100];
-// var AutoCaptureTweak = -1;
-// var AutoCaptureRepeatTweak = -1;
-// var AutoCaptureSourceTweak = -1;
-// var AutoCaptureSourceIndex = -1;
-
-// var CaptureFramesDefault = 30;
-// Settings.CaptureFrames = CaptureFramesDefault;
-// Settings.CaptureDelay = 0;
-// var CaptureFramesPresets = [5,10,15,30,50,66,90,100];
-// var CaptureDelayPresets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-// var CaptureTweak = -1;
-// var CaptureDelayTweak = -1;
-
-// var CaptureTriggerTime = null;
-// var CaptureTriggerTimeType = 0;
-// var CaptureTriggerDelta = 0;
 
 let LastDropTarget = null;
 
@@ -387,10 +357,14 @@ let CSVActiveSet = 0;
 let gDrawFrame = 1;
 
 let MAX_GRAPHS = 8;
-let Graphs = new Array(MAX_GRAPHS);
-let GraphModeMask = 1 | 2;
+let MAX_PRESETS = 10;
+let DEFAULT_GRAPH_MODE_MASK = 1 | 2;
+let PresetSets = {};
+let PresetNamed = {};
 let GraphPresetIndex = 0;
-let NumGraphs = MAX_GRAPHS;
+let NumGrap = null;
+
+
 
 let MouseInGraphButton = 0;
 let MouseInGraphModeButton = 0;
@@ -413,7 +387,6 @@ let RangeToolTips = new Array(MAX_GRAPHS);
 
 for(let i = 0; i < MAX_GRAPHS; ++i)
 {
-	Graphs[i] = {};
 	RangeToolTips[i] = {};
 }
 
@@ -422,6 +395,29 @@ const AllowTime = 1;
 let gMouseXPrc = 0;
 let gMouseIndex = 0;
 
+function AddNamedPreset(Name, Settings)
+{
+	PresetNamed[Name] = JSON.parse(Settings);
+}
+
+/// --insert named presets here--
+
+function CreateDefaultGraphSettings()
+{
+	let GraphSettings = {};
+	GraphSettings.Graphs = new Array(MAX_GRAPHS);
+	for(let i = 0; i < MAX_GRAPHS; ++i)
+	{
+		GraphSettings.Graphs[i] = {};
+	}
+	GraphSettings.NumGraphs = MAX_GRAPHS;
+	GraphSettings.GraphModeMask = DEFAULT_GRAPH_MODE_MASK;
+	return GraphSettings;
+}
+
+let GraphSettings = CreateDefaultGraphSettings();
+
+PresetSets[0] = GraphSettings;
 
 
 TimerArray.push(Empty); // 0 is root of tree
@@ -915,7 +911,7 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 	}
 
 
-	let GraphHeight = h / NumGraphs;
+	let GraphHeight = h / GraphSettings.NumGraphs;
 	let y = 0;
 	let SetColors = 0;
 	for(let set in CSVSets)
@@ -985,12 +981,12 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 
 	let ttt = 0;
 
-	for(let i = 0; i < NumGraphs; ++i)
+	for(let i = 0; i < GraphSettings.NumGraphs; ++i)
 	{
 		Params.Rect = WindowRect(0, y, w, GraphHeight);
 		let Data = [];
-		let GraphColumns = Graphs[i];
-		let GraphMode = GraphModeMask;
+		let GraphColumns = GraphSettings.Graphs[i];
+		let GraphMode = GraphSettings.GraphModeMask;
 
 		if(UpdateRangeTooltip)
 			RangeToolTips[i] = InitToolTip();
@@ -1601,8 +1597,8 @@ function DrawRootGraphMenuElement(context)
 	if(HasVideoTrack())
 		h -= VideoTrackHeight;
 
-	let ydelta = h / NumGraphs;
-	for(let i = 0; i < NumGraphs; ++i)
+	let ydelta = h / GraphSettings.NumGraphs;
+	for(let i = 0; i < GraphSettings.NumGraphs; ++i)
 	{
 		let Text = "Source";
 		var w = 10 + context.measureText(Text).width;
@@ -2989,7 +2985,7 @@ function DrawMenuGraph()
 	let M = CreateMenuState(SizeInfo);
 	context.fillRect(M.x, M.y, Width, SizeInfo.h);
 
-	let GraphSet = Graphs[GraphButtonIndex];
+	let GraphSet = GraphSettings.Graphs[GraphButtonIndex];
 	if(!GraphSet)
 		debugger;
 
@@ -3025,8 +3021,6 @@ function DrawMenuGraph()
 				}
 				gGraphCSVInvalid = 1;
 				RangeInvalidate(RangeSelectState);
-
-				Cookie.Graphs = Graphs;
 				WriteCookie();
 
 			}
@@ -3059,6 +3053,7 @@ function DrawMenuGraphMode()
 	context.fillRect(M.x, M.y, Width, SizeInfo.h);
 
 	let Mask = 1;
+	let GraphModeMask = GraphSettings.GraphModeMask;
 	for(let i = 0; i < Strings.length; ++i)
 	{
 		let Active = 0 != (GraphModeMask&Mask);
@@ -3072,12 +3067,49 @@ function DrawMenuGraphMode()
 		}
 		Mask = Mask << 1;
 	}
+	if(GraphSettings.GraphModeMask != GraphModeMask)
+	{
+		GraphSettings.GraphModeMask = GraphModeMask;
+		WriteCookie();
+	}
 
 	SizeInfo.h = M.y - SizeInfo.y;
 
 	RequestDraw();
 	return SizeInfo;
 }
+function DeepClone(Obj)
+{
+	return JSON.parse(JSON.stringify(Obj));
+}
+
+function SetGraphPresetNamed(Name)
+{
+	if(PresetNamed[Name])
+	{
+		PresetSets[GraphPresetIndex] = DeepClone(PresetNamed[Name]);
+		GraphSettings = PresetSets[GraphPresetIndex];
+		gGraphCSVInvalid = 1;
+		RequestDraw();
+		WriteCookie();
+	}
+}
+
+
+function SetGraphPreset(Index)
+{
+	if(!PresetSets[Index])
+	{
+		///deep clone. haters gonna hate. https://www.youtube.com/watch?v=nfWlot6h_JM
+		PresetSets[Index] = DeepClone(PresetSets[GraphPresetIndex]);
+	}
+	GraphPresetIndex = Index;
+	GraphSettings = PresetSets[GraphPresetIndex];
+	gGraphCSVInvalid = 1;
+	RequestDraw();
+	WriteCookie();
+}
+
 
 
 function DrawMenuPresets2()
@@ -3085,11 +3117,15 @@ function DrawMenuPresets2()
 	let Selection = null;
 	let SizeInfo = {};
 	SizeInfo.h = 4 * BoxHeight;
+	let NumNamed = 0;
 	let Strings = ["Preset ***"];
+	for(let Name in PresetNamed)
+	{
+		NumNamed++;
+		Strings.push(Name);
+	}
 	let wLeft = MeasureArray(0, Strings);
-	let wRight = 10;
-	wRight = MeasureArray(wRight, ["Frame Time"]);
-	let Width = wLeft + 35 + wRight;
+	let Width = wLeft + 10;
 
 	SizeInfo.w = Width;
 	SizeInfo.x = GraphModeButtonX;
@@ -3101,15 +3137,28 @@ function DrawMenuPresets2()
 
 	let Mask = 1;
 
-	for(let i = 0; i < 10; ++i)
+	for(let i = 0; i < MAX_PRESETS; ++i)
 	{
 		let Active = GraphPresetIndex == i;
 		if(DrawMenuElement(M, Active, "Preset " + i, "", 'white'))
 		{
-			GraphPresetIndex = i;
+			SetGraphPreset(i);
 			gGraphCSVInvalid = 1;
 		}
 	}
+	if(NumNamed>0)
+	{
+		DrawMenuElement(M, false, "---", "", 'white');
+		for(let Name in PresetNamed)
+		{
+			if(DrawMenuElement(M, false, Name, "", 'white'))
+			{
+				SetGraphPresetNamed(Name);
+			}
+		}
+	}
+
+
 	SizeInfo.h = M.y - SizeInfo.y;
 	RequestDraw();
 	return SizeInfo;
@@ -4618,7 +4667,7 @@ function DrawActiveToolTip()
 		}
 
 	}
-	for(let i = 0; i < NumGraphs; ++i)
+	for(let i = 0; i < GraphSettings.NumGraphs; ++i)
 	{
 		if(RangeToolTips[i] && RangeToolTips[i].a)
 		{
@@ -4627,7 +4676,7 @@ function DrawActiveToolTip()
 				h -= VideoTrackHeight;
 
 			let yoffset = -BoxHeight * (RangeToolTips[i].a.length / RangeToolTipColumns) / 2;
-			DrawToolTip(RangeToolTips[i], CanvasDetailedView, nWidth, yoffset + (0.5 + i) * h / NumGraphs, RangeToolTipColumns);
+			DrawToolTip(RangeToolTips[i], CanvasDetailedView, nWidth, yoffset + (0.5 + i) * h / GraphSettings.NumGraphs, RangeToolTipColumns);
 
 		}
 	}
@@ -5101,10 +5150,9 @@ function KeyUp(evt)
 	}
 	if(k >= 49 && k < 49 + MAX_GRAPHS)
 	{
-		NumGraphs = (k-49) + 1;
+		GraphSettings.NumGraphs = (k-49) + 1;
 		gGraphCSVInvalid = 1;
 		RangeInvalidate(RangeSelectState);
-		Cookie.NumGraphs = NumGraphs;
 		WriteCookie();
 
 
@@ -5142,6 +5190,19 @@ function KeyUp(evt)
 	if(evt.keyCode == 90)
 	{
 		KeyZDown = 0;
+	}
+	if(evt.keyCode == 187)
+	{
+		for(let i in GraphSettings.Graphs)
+		{
+			let g =  GraphSettings.Graphs[i];
+			for(let name in g)
+				if(g[name] == 0)
+					delete g[name];
+		}
+		let json = JSON.stringify(GraphSettings);
+		navigator.clipboard.writeText("AddNamedPreset('Preset_Name', '" + json + "');");
+		window.alert("Preset code for named preset copied to clipboard. insert above after --insert named presets here--");
 	}
 	gGraphCSVInvalid = 1;
 	RequestDraw();
@@ -5472,23 +5533,48 @@ function ReadCookie()
 	{
 		Cookie[i] = C[i];
 	}
-	if(Cookie.NumGraphs)
+	if(Cookie.PresetsSets)
 	{
-		NumGraphs = Cookie.NumGraphs;
+		PresetSets = Cookie.PresetsSets;
+		if(Cookie.GraphPresetIndex)
+			GraphPresetIndex = Cookie.GraphPresetIndex;
+		else
+			GraphPresetIndex = 0;
+		if(PresetSets[GraphPresetIndex])
+			GraphSettings = PresetSets[GraphPresetIndex];
+		else
+		{
+			PresetSets[GraphPresetIndex] = CreateDefaultGraphSettings();
+		}
+
 	}
-	if(Cookie.Graphs)
+	else if(Cookie.Graphs)
 	{
+		PresetSets[GraphPresetIndex] = CreateDefaultGraphSettings();
 		for(let i = 0; i < Cookie.Graphs.length; ++i)
 		{
-			Graphs[i] = Cookie.Graphs[i];
+			PresetSets[GraphPresetIndex].Graphs[i] = Cookie.Graphs[i];
+		}
+		if(Cookie.NumGraphs)
+		{
+			PresetSets[GraphPresetIndex].NumGraphs = Cookie.NumGraphs;
 		}
 	}
+	GraphSettings = PresetSets[GraphPresetIndex];
 
 }
 function WriteCookie()
 {
+	Cookie.PresetsSets = PresetSets;
+	Cookie.GraphPresetIndex = GraphPresetIndex;
+
 	var C = GetCookie();
-	C.csv = {};
+
+
+	Cookie.csv = {};
+	delete Cookie.Graphs;
+
+
 	for(var i in Cookie)
 	{
 		C.csv[i] = Cookie[i];
@@ -5499,6 +5585,8 @@ function WriteCookie()
 	var cookie = 'fisk=' + JSON.stringify(C) + ';expires=' + date;
 	localStorage.setItem("microprofile_csv", cookie);
 }
+
+
 
 // Shared graph code begin
 let GRAPH_DRAW_FILLED = 1;
@@ -6225,7 +6313,7 @@ function ParseCSVCheckFinished(Name)
 					first = 0;
 					continue;
 				}
-				let gs = Graphs[GraphIndex++];
+				let gs = GraphSettings.Graphs[GraphIndex++];
 				if(Object.keys(gs).length == 0)
 				{
 					gs[Column] = 1;
