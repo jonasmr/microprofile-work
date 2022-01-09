@@ -391,6 +391,7 @@ for(let i = 0; i < MAX_GRAPHS; ++i)
 }
 
 const VideoTrackHeight = 200;
+let VideoTrackHeightActive = 200;
 const AllowTime = 1;
 let gMouseXPrc = 0;
 let gMouseIndex = 0;
@@ -741,6 +742,9 @@ function ResizeView(View, x, y, w, h)
 	View.OffscreenData[0] = c0.getContext('2d').getImageData(0, 0, c0.width, c0.height);
 	View.OffscreenData[1] = c1.getContext('2d').getImageData(0, 0, c1.width, c1.height);
 
+	gGraphCSVInvalid = 1;
+	RequestDraw();
+
 }
 function CreateView(x, y, w, h, name, DisplayFunc,  visible, index, InvalidFunc)
 {
@@ -877,16 +881,41 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 
 	let h = View.h;
 	let w = View.w;
+	let SingleGraph = 0;
+	let SingleGraphHeight = VideoTrackHeight;
+	let SingleGraphIndex = -1;
+	let GraphHeight = h / GraphSettings.NumGraphs;
+
+	let Params = GraphCSVParameters(FullUpdate, View, LocalMouseX, LocalMouseY);
+	let Mouse = {};
+
+	let NumGraphs = GraphSettings.NumGraphs;
+	let Graphs = GraphSettings.Graphs;
+
+
 	if(HasVideoTrack())
 	{
 		h -= VideoTrackHeight;
+		GraphHeight = h / GraphSettings.NumGraphs;
+
+		if(KeyZDown)
+		{
+			//graph/video is swapped, and only one graph is shown
+			NumGraphs = 1;
+			Graphs = Array();
+			let Index = Math.floor(LocalMouseY / GraphHeight);
+			Graphs[0] = GraphSettings.Graphs[Index];
+			let NewHeight = nHeight - VideoTrackHeightActive;
+			LocalMouseY -= Index * GraphHeight;
+			LocalMouseY = NewHeight * LocalMouseY / GraphHeight
+			Params.MouseMarker = 1;
+			GraphHeight = NewHeight;
+		}
 	}
 
 
 
 
-	let Params = GraphCSVParameters(FullUpdate, View, LocalMouseX, LocalMouseY);
-	let Mouse = {};
 	Mouse.X = LocalMouseX;
 	Mouse.Y = LocalMouseY;
 
@@ -911,7 +940,7 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 	}
 
 
-	let GraphHeight = h / GraphSettings.NumGraphs;
+
 	let y = 0;
 	let SetColors = 0;
 	for(let set in CSVSets)
@@ -981,11 +1010,11 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 
 	let ttt = 0;
 
-	for(let i = 0; i < GraphSettings.NumGraphs; ++i)
+	for(let i = 0; i < NumGraphs; ++i)
 	{
 		Params.Rect = WindowRect(0, y, w, GraphHeight);
 		let Data = [];
-		let GraphColumns = GraphSettings.Graphs[i];
+		let GraphColumns = Graphs[i];
 		let GraphMode = GraphSettings.GraphModeMask;
 
 		if(UpdateRangeTooltip)
@@ -1101,7 +1130,7 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 				return r;
 			};
 
-			Offset = DrawGraph2Range(context, Params, RangeSelect, '#59d0ff', '#00ddff', "Selection", Offset);
+			Offset = DrawGraph2Range(context, Params, RangeSelect, "Selection", Offset);
 		}
 
 		if(MouseIndex >= 0)
@@ -1748,7 +1777,11 @@ function DrawViews()
 	DrawCaptureMenu(context);
 	DrawGraphSettingsMenu(context, MainView.x, MainView.y, MainView.w, MainView.h);
 
-	DrawRootGraphMenuElement(context);
+	if(!KeyZDown)
+	{
+		DrawRootGraphMenuElement(context);
+	}
+
 
 
 
@@ -4395,6 +4428,8 @@ function ShowMenu()
 
 function DrawMenu()
 {
+	if(KeyZDown)
+		return;
 	//if(WSConnected && WS && WS.readyState == 1)
 	{
 		var context = CanvasDetailedView.getContext('2d');
@@ -4582,7 +4617,7 @@ function DrawVideo()
 			{
 				let v = Set.Video;
 				let s = v.seekable;
-				if(s.length > 0) 
+				if(s.length > 0)
 				{
 					let endtime = 0;
 					for(let i = 0; i < s.length; ++i)
@@ -4598,7 +4633,7 @@ function DrawVideo()
 						if(RealTime != null && RealTime >= 0)
 						{
 							time = RealTime;
-							
+
 						}
 					}
 					if(endtime > 0 && !v.seeking && time != Set.VideoSetTime)
@@ -4614,7 +4649,7 @@ function DrawVideo()
 					total += DrawWidth + 1;
 					Videos.push(v);
 					w.push(DrawWidth);
-					h.push(DrawHeight);				
+					h.push(DrawHeight);
 					if(v.seeking)
 					{
 						RequestDraw();
@@ -4635,9 +4670,13 @@ function DrawVideo()
 	let VideoScale = 1.0;
 	if(KeyZDown)
 	{
-		VideoScale = Math.min(nWidth / total, nHeight / DrawHeight);
+		VideoScale = Math.min(nWidth / total, (nHeight-DrawHeight) / DrawHeight);
 		DrawPosX = 0;
+		let RealDrawWidth = VideoScale * total;
+		if(RealDrawWidth < nWidth)
+			DrawPosX = (nWidth - RealDrawWidth) / 2;
 		DrawPosY = nHeight - DrawHeight * VideoScale;
+		VideoTrackHeightActive = DrawHeight * VideoScale; //used in drawgraph to adjust height of the graph shown
 	}
 	for(let i = 0; i < Videos.length; ++i)
 	{
@@ -4650,6 +4689,8 @@ function DrawVideo()
 
 function DrawActiveToolTip()
 {
+	if(KeyZDown)
+		return;
 	if(SubMenuActive == -1)
 	{
 		if(ToolTipImmediate)
@@ -5637,6 +5678,9 @@ function CreateDrawGraph2Parameters()
 	P.xRange = 1;
 	P.xOffset = 0;
 	P.FullDraw = 1;
+	P.MouseMarker = 0;
+	P.ColorFront = '#59d0ff';
+	P.ColorBack = '#00ddff';
 	return P;
 }
 
@@ -5661,7 +5705,7 @@ function DrawGraph2TextBox(context, text, x, y, align)
 }
 
 
-function DrawGraph2Range(context, Params, Range, ColorBack, ColorFront, Name, Offset)
+function DrawGraph2Range(context, Params, Range, Name, Offset)
 {
 	if(!Offset)
 		Offset = 0;
@@ -5672,6 +5716,8 @@ function DrawGraph2Range(context, Params, Range, ColorBack, ColorFront, Name, Of
 
 	let xRange = gRange * gRangeMaxLen;
 	let xOffset = gOffset * gRangeMaxLen;
+	let ColorFront = Params.ColorFront;
+	let ColorBack = Params.ColorBack;
 
 	var Off = Range.Off + xOffset;
 	if(fBegin < fEnd)
@@ -5705,6 +5751,7 @@ function DrawGraph2Range(context, Params, Range, ColorBack, ColorFront, Name, Of
 		context.moveTo(X+W, 0);
 		context.lineTo(X+W, nHeight);
 		context.stroke();
+
 		let Center = ((fBegin + fEnd) / 2.0) - Off;
 		let TextLeft = Params.FormatIndex ? Params.FormatIndex(fBegin-Range.Off) : fBegin-Range.Off;
 		let TextRight = Params.FormatIndex ? Params.FormatIndex(fEnd-Range.Off) : fEnd-Range.Off;
@@ -5791,7 +5838,7 @@ function Graph2MouseXPrc(Parameters, Mouse)
 	let y = Rect.y + Border;
 	let h = Rect.h - 2*Border;
 	let w = Rect.w - 2*Border;
-	
+
 	let MouseX = Mouse.X-x;
 	let MouseY = Mouse.Y-y;
 	let MouseXPrc = (Mouse.X - x) / (w-1);
@@ -5911,6 +5958,21 @@ function DrawGraph2(context, Parameters, data, Mouse, OutMouseIndex)
 		context.clearRect(wx, wy, ww, wh);
 	}
 
+	if(Parameters.MouseMarker)
+	{
+		context.fillStyle = 'wheat';
+		context.strokeStyle = 'wheat';
+		context.globalAlpha = 0.1;
+		context.beginPath();
+		context.moveTo(Mouse.X, y);
+		context.lineTo(Mouse.X, y+h);
+		context.moveTo(x, Mouse.Y);
+		context.lineTo(x+w, Mouse.Y);
+		context.stroke();
+		context.globalAlpha = 1;
+	}
+
+
 	let SampleWidth = w / (xRange-1);
 	let MouseIndex = Math.max(0, Math.min(MaxLen-1, xOffset + Math.floor(MouseXPrc * xRange)));
 
@@ -5920,6 +5982,9 @@ function DrawGraph2(context, Parameters, data, Mouse, OutMouseIndex)
 	let GRAPH_ALPHA = 0.2;
 	let SECTION_ALPHA = 0.3;
 	let MouseDrawX;
+
+
+
 	for(let dataindex in data)
 	{
 		let LocalElement = data[dataindex];
