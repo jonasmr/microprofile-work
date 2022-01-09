@@ -389,6 +389,7 @@ let gDrawFrame = 1;
 let MAX_GRAPHS = 8;
 let Graphs = new Array(MAX_GRAPHS);
 let GraphModeMask = 1 | 2;
+let GraphPresetIndex = 0;
 let NumGraphs = MAX_GRAPHS;
 
 let MouseInGraphButton = 0;
@@ -905,12 +906,7 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 			{
 				Index = Math.min(Index, Set.TimeData.length-1);
 				let seconds = Set.TimeData[Index];
-				let minutes = Math.floor(seconds/60.0);
-				seconds = seconds - minutes * 60;
-				if(minutes > 0)
-					Str += " " + minutes + "m:" + seconds.toFixed(2) + "s";
-				else
-					Str += " " + seconds.toFixed(2) + "s";
+				Str += ": " + FormatSeconds(seconds);
 			}
 
 		}
@@ -1069,10 +1065,6 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 		}
 		y += GraphHeight;
 	}
-	if(ttt)
-	{
-		console.log("update time was ", ttt);
-	}
 
 	if(!FullUpdate)
 	{
@@ -1081,6 +1073,38 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 
 		if(RangeValid(RangeSelect))
 		{
+			Params.FormatIndex = function(Value)
+			{
+				Value = Math.round(Value);
+				let r = Array();
+				r.push('' + Value);
+				let time = GetTimeFromIndexArray(Value);
+				if(time.length)
+				{
+					r.push('');
+					for(let i = 0; i < time.length; ++i)
+						r.push(FormatSeconds(time[i]));
+				}
+				return r;
+			};
+			Params.FormatRange = function(Begin, End)
+			{
+				Begin = Math.round(Begin);
+				End = Math.round(End);
+				let r = Array();
+				r.push('' + (End - Begin));
+				let t0 = GetTimeFromIndexArray(Begin);
+				let t1 = GetTimeFromIndexArray(End);
+				let l = Math.min(t0.length, t1.length);
+				if(l > 0)
+				{
+					r.push('');
+					for(let i = 0; i < l; ++i)
+						r.push(FormatSeconds(t1[i]-t0[i]));
+				}
+				return r;
+			};
+
 			Offset = DrawGraph2Range(context, Params, RangeSelect, '#59d0ff', '#00ddff', "Selection", Offset);
 		}
 
@@ -1198,122 +1222,122 @@ function DrawRange(context, X, XEnd, Y, YEnd, ColorBack, ColorFront)
 }
 
 
-function DrawHistory(View, LocalMouseX, LocalMouseY)
-{
-	ProfileEnter("DrawHistory");
-	var Canvas = View.Canvas[View.BackBuffer];
-	var context = Canvas.getContext('2d');
-	context.clearRect(0, 0, View.w, View.h);
-	if(!FrameData.Time)
-		return;
-	var fHeight = View.h;
-	var fWidth = nWidth / FRAME_COUNT;
-	var fHeightScale = fHeight / ReferenceHistory;
-	var fX = 0;
-	var FrameIndex = -1;
-	var MouseDragging = 0;
-	var GreenTime = (Settings.TargetTime * 0.9);
-	var RedBegin = (Settings.TargetTime * 1.1);
-	var LerpDist = 1.0 / (RedBegin - GreenTime);
-	var id0 = -1;
-	var id1 = -1;
+// function DrawHistory(View, LocalMouseX, LocalMouseY)
+// {
+// 	ProfileEnter("DrawHistory");
+// 	var Canvas = View.Canvas[View.BackBuffer];
+// 	var context = Canvas.getContext('2d');
+// 	context.clearRect(0, 0, View.w, View.h);
+// 	if(!FrameData.Time)
+// 		return;
+// 	var fHeight = View.h;
+// 	var fWidth = nWidth / FRAME_COUNT;
+// 	var fHeightScale = fHeight / ReferenceHistory;
+// 	var fX = 0;
+// 	var FrameIndex = -1;
+// 	var MouseDragging = 0;
+// 	var GreenTime = (Settings.TargetTime * 0.9);
+// 	var RedBegin = (Settings.TargetTime * 1.1);
+// 	var LerpDist = 1.0 / (RedBegin - GreenTime);
+// 	var id0 = -1;
+// 	var id1 = -1;
 
-	if(MouseDragActiveXEnd > MouseDragActiveXStart)
-	{
-		var idx0 = Math.ceil(FRAME_COUNT * MouseDragActiveXStart / nWidth);
-		var idx1 = Math.floor(FRAME_COUNT * MouseDragActiveXEnd / nWidth);
-		idx0 = Clamp(idx0, 0, FRAME_COUNT-1);
-		idx1 = Clamp(idx1, 0, FRAME_COUNT-1);
-		id0 = FrameData.Ids[idx0];
-		id1 = FrameData.Ids[idx1];
-	}
-
-
-	var ToolTipFrame = -1;
-	for(var i = 0; i < FRAME_COUNT; i++)
-	{
-		var fMs = FrameData.Time[i];
-		var fPrc = (fMs - GreenTime) * LerpDist;
-		fPrc = Clamp(fPrc, 0, 1);
-		var color = LerpColor(fPrc);
-		var fid = FrameData.Ids[i];
-		if(fid >= id0 && fid <= id1)
-		{
-			color = 'cyan';
-		}else if(FrameData.Frozen[i])
-		{
-			color = 'purple';
-		}
+// 	if(MouseDragActiveXEnd > MouseDragActiveXStart)
+// 	{
+// 		var idx0 = Math.ceil(FRAME_COUNT * MouseDragActiveXStart / nWidth);
+// 		var idx1 = Math.floor(FRAME_COUNT * MouseDragActiveXEnd / nWidth);
+// 		idx0 = Clamp(idx0, 0, FRAME_COUNT-1);
+// 		idx1 = Clamp(idx1, 0, FRAME_COUNT-1);
+// 		id0 = FrameData.Ids[idx0];
+// 		id1 = FrameData.Ids[idx1];
+// 	}
 
 
-		var fH = fHeightScale * fMs;
-		var bMouse = LocalMouseX > fX && LocalMouseX < fX + fWidth+1 && MouseY <= HistoryHeight;
-		if(bMouse && !MouseDragging)
-		{
-			context.fillStyle = FRAME_HISTORY_COLOR_GPU;
-			ToolTipFrame = i;
-		}
-		else
-		{
-			context.fillStyle = color;
-		}
-		context.fillRect(fX, fHeight - fH, fWidth-1, fH);
-		fX += fWidth;
-	}
+// 	var ToolTipFrame = -1;
+// 	for(var i = 0; i < FRAME_COUNT; i++)
+// 	{
+// 		var fMs = FrameData.Time[i];
+// 		var fPrc = (fMs - GreenTime) * LerpDist;
+// 		fPrc = Clamp(fPrc, 0, 1);
+// 		var color = LerpColor(fPrc);
+// 		var fid = FrameData.Ids[i];
+// 		if(fid >= id0 && fid <= id1)
+// 		{
+// 			color = 'cyan';
+// 		}else if(FrameData.Frozen[i])
+// 		{
+// 			color = 'purple';
+// 		}
 
 
-	DrawRange(context, MouseDragActiveXStart, MouseDragActiveXEnd, 0, HistoryHeight, '#59d0ff', '#00ddff');
+// 		var fH = fHeightScale * fMs;
+// 		var bMouse = LocalMouseX > fX && LocalMouseX < fX + fWidth+1 && MouseY <= HistoryHeight;
+// 		if(bMouse && !MouseDragging)
+// 		{
+// 			context.fillStyle = FRAME_HISTORY_COLOR_GPU;
+// 			ToolTipFrame = i;
+// 		}
+// 		else
+// 		{
+// 			context.fillStyle = color;
+// 		}
+// 		context.fillRect(fX, fHeight - fH, fWidth-1, fH);
+// 		fX += fWidth;
+// 	}
 
 
-	var fH = fHeight - fHeightScale * Settings.TargetTime;
-	context.fillStyle = 'wheat';
-	context.strokeStyle = 'wheat';
-	context.beginPath();
-	context.moveTo(0, fH);
-	context.lineTo(nWidth, fH);
-	// context.closePath();
-	context.stroke();
-	var YText;
-	if(fH > HistoryHeight * 0.25)
-	{
-		YText = fH - FontAscent;
-	}
-	else
-	{
-		YText = fH + FontHeight;
-	}
-
-	context.fillText(Settings.TargetTime + 'ms', 3, YText);
-	context.textAlign='right';
-	context.fillText(FormatTime(ReferenceHistory) + 'ms', nWidth, FontHeight);
-	context.textAlign='left';
+// 	DrawRange(context, MouseDragActiveXStart, MouseDragActiveXEnd, 0, HistoryHeight, '#59d0ff', '#00ddff');
 
 
+// 	var fH = fHeight - fHeightScale * Settings.TargetTime;
+// 	context.fillStyle = 'wheat';
+// 	context.strokeStyle = 'wheat';
+// 	context.beginPath();
+// 	context.moveTo(0, fH);
+// 	context.lineTo(nWidth, fH);
+// 	// context.closePath();
+// 	context.stroke();
+// 	var YText;
+// 	if(fH > HistoryHeight * 0.25)
+// 	{
+// 		YText = fH - FontAscent;
+// 	}
+// 	else
+// 	{
+// 		YText = fH + FontHeight;
+// 	}
 
-	if(ToolTipFrame >= 0)
-	{
-		var fMs = FrameData.Time[ToolTipFrame];
-		var Frozen = FrameData.Frozen[ToolTipFrame];
-		ToolTipCallback = function()
-		{
-			var StringArray = [];
-			StringArray.push("Frame");
-			StringArray.push("" + ToolTipFrame);
-			StringArray.push("Time");
-			StringArray.push("" + fMs.toFixed(3));
-			if(Frozen)
-			{
-				StringArray.push("Frozen & Unreliable");
-				StringArray.push("");
-			}
-			return StringArray;
-		}
-	}
+// 	context.fillText(Settings.TargetTime + 'ms', 3, YText);
+// 	context.textAlign='right';
+// 	context.fillText(FormatTime(ReferenceHistory) + 'ms', nWidth, FontHeight);
+// 	context.textAlign='left';
 
 
-	ProfileLeave();
 
-}
+// 	if(ToolTipFrame >= 0)
+// 	{
+// 		var fMs = FrameData.Time[ToolTipFrame];
+// 		var Frozen = FrameData.Frozen[ToolTipFrame];
+// 		ToolTipCallback = function()
+// 		{
+// 			var StringArray = [];
+// 			StringArray.push("Frame");
+// 			StringArray.push("" + ToolTipFrame);
+// 			StringArray.push("Time");
+// 			StringArray.push("" + fMs.toFixed(3));
+// 			if(Frozen)
+// 			{
+// 				StringArray.push("Frozen & Unreliable");
+// 				StringArray.push("");
+// 			}
+// 			return StringArray;
+// 		}
+// 	}
+
+
+// 	ProfileLeave();
+
+// }
 function MouseInRect(Rect)
 {
 	return MouseInside(Rect.x, Rect.y, Rect.w, Rect.h);
@@ -1630,6 +1654,36 @@ function DrawRootGraphMenuElement(context)
 
 			X += w + 10;
 
+
+			Text = "Preset";
+			w = 10 + context.measureText(Text).width;
+			XCenter = X + w / 2;
+			Inside = MouseInside(X, Y, w, 4 + FontHeight) ;
+
+			context.textAlign = 'center';
+			context.fillStyle = Inside ? nBackColors[1] : 'black';
+			context.fillRect(X, Y, w, 4 + FontHeight);
+			context.fillStyle = '#ffffff';
+			context.fillText(Text, XCenter, Y + FontHeight);
+			context.textAlign = '';
+
+			if(Inside)
+			{
+				// MouseInGraphModeButton = i;
+				GraphModeButtonX = X + 2;
+				GraphModeButtonY = Y + FontHeight + 2;
+				// GraphModeButtonIndex = MouseInGraphModeButton;
+				EnableMenu(SubMenuPresets2);
+			}
+
+			X += w + 10;
+
+
+
+
+
+
+
 			if(CSVNumSets > 1)
 			{
 				let Text = "Set: " + (CSVActiveSet == 0 ? "All" : CSVSetNames[CSVActiveSet-1]);
@@ -1721,6 +1775,7 @@ var SubMenuGraphSettingsKey = "";
 let SubMenuGraph = 11;
 
 let SubMenuGraphMode = 12;
+var SubMenuPresets2 = 13;
 
 
 var SubMenuActive = -1;
@@ -2649,6 +2704,7 @@ function DrawMenuElement(M, Selected, Name, Value, color)
 	var YText = M.y + BoxHeight - FontAscent;
 
 	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[M.cidx];
+	context.textAlign = 'left';
 	context.fillStyle = Selected?'white':bgcolor;
 	context.fillRect(M.x-2, M.y, M.w + 4, BoxHeight);
 	context.fillStyle = bgcolor;
@@ -3021,13 +3077,43 @@ function DrawMenuGraphMode()
 
 	RequestDraw();
 	return SizeInfo;
-
-
-
 }
 
 
+function DrawMenuPresets2()
+{
+	let Selection = null;
+	let SizeInfo = {};
+	SizeInfo.h = 4 * BoxHeight;
+	let Strings = ["Preset ***"];
+	let wLeft = MeasureArray(0, Strings);
+	let wRight = 10;
+	wRight = MeasureArray(wRight, ["Frame Time"]);
+	let Width = wLeft + 35 + wRight;
 
+	SizeInfo.w = Width;
+	SizeInfo.x = GraphModeButtonX;
+	SizeInfo.y = GraphModeButtonY;
+
+	let M = CreateMenuState(SizeInfo);
+	let context = CanvasDetailedView.getContext('2d');
+	context.fillRect(M.x, M.y, Width, SizeInfo.h);
+
+	let Mask = 1;
+
+	for(let i = 0; i < 10; ++i)
+	{
+		let Active = GraphPresetIndex == i;
+		if(DrawMenuElement(M, Active, "Preset " + i, "", 'white'))
+		{
+			GraphPresetIndex = i;
+			gGraphCSVInvalid = 1;
+		}
+	}
+	SizeInfo.h = M.y - SizeInfo.y;
+	RequestDraw();
+	return SizeInfo;
+}
 
 function Dots()
 {
@@ -4330,6 +4416,10 @@ function DrawMenu()
 		{
 			MenuRect = DrawMenuGraphMode();
 		}
+		else if(SubMenuActive == SubMenuPresets2)
+		{
+			MenuRect = DrawMenuPresets2();
+		}
 		if(SubMenuActive != SubMenuGraph)
 		{
 			MouseInGraphButton = -1;
@@ -4397,6 +4487,33 @@ function GetTimeFromIndex(Name, Index)
 	return null;
 }
 
+function GetTimeFromIndexArray(Index)
+{
+	let out = Array();
+	for(let Name in CSVSets)
+	{
+		let Set = CSVSets[Name];
+		if(Set.VideoValid && Set.TimeData && Set.TimeData.length > Index)
+		{
+			out.push(Set.TimeData[Index]);
+		}
+	}
+	return out;
+}
+
+function FormatSeconds(seconds)
+{
+	let str = "";
+	let minutes = Math.floor(seconds/60.0);
+	seconds = seconds - minutes * 60;
+	if(minutes > 0)
+		str += '' + minutes + 'm:' + seconds.toFixed(2) + 's';
+	else
+		str += '' + seconds.toFixed(2) + 's';
+	return str;
+}
+
+
 function DrawVideo()
 {
 	let ForceRedraw = false;
@@ -4432,15 +4549,14 @@ function DrawVideo()
 						if(RealTime != null && RealTime >= 0)
 						{
 							time = RealTime;
-							console.log("Setting time to realtime ", time);
+							
 						}
 					}
-					
-
-					if(endtime > 0 && !v.seeking && time != v.currentTime)
+					if(endtime > 0 && !v.seeking && time != Set.VideoSetTime)
 					{
 						v.playbackRate = 0;
 						v.currentTime = time;
+						Set.VideoSetTime = time;
 					}
 					let width = v.videoWidth;
 					let height = v.videoHeight;
@@ -5501,27 +5617,38 @@ function DrawGraph2Range(context, Params, Range, ColorBack, ColorFront, Name, Of
 		context.moveTo(X+W, 0);
 		context.lineTo(X+W, nHeight);
 		context.stroke();
-		var Duration = (fEnd - fBegin).toFixed(0) + Params.Ext;
-		var Center = ((fBegin + fEnd) / 2.0) - Off;
-		var DurationWidth = context.measureText(Duration+ "   ").width;
+		let Center = ((fBegin + fEnd) / 2.0) - Off;
+		let TextLeft = Params.FormatIndex ? Params.FormatIndex(fBegin-Range.Off) : fBegin-Range.Off;
+		let TextRight = Params.FormatIndex ? Params.FormatIndex(fEnd-Range.Off) : fEnd-Range.Off;
+		let TextMid = Params.FormatRange ? Params.FormatRange(fBegin-Range.Off, fEnd-Range.Off) : Center;
+		let TextCount = Math.max(Math.max(TextLeft.length, TextRight.length), TextMid.length);
+
+		let MidWidth = 0;
+		for(let t = 0; t < TextCount; ++t)
+			if(TextMid[t])
+				MidWidth = Math.max(MidWidth, context.measureText(TextMid[t]+ "   ").width);
 
 		context.fillStyle = 'white';
 		context.textAlign = 'right';
-		var TextPosY = Y + YSpace;
-		DrawGraph2TextBox(context, (fBegin-Range.Off).toFixed(0), X-3, TextPosY, 'right');
-		var YS = [Y, YBottom];
-		for(var i = 0; i < YS.length; ++i)
+		let TextPosY = Y + YSpace;
+		for(let t = 0; t < TextCount; ++t)
+			if(TextLeft[t])
+				DrawGraph2TextBox(context, TextLeft[t], X-3, TextPosY + t * FontHeight, 'right');
+		let YS = [Y, YBottom];
+		for(let i = 0; i < YS.length; ++i)
 		{
-			var Y = YS[i];
-			var Y0 = Y + fRulerOffset;
-			var W0 = W - DurationWidth + FontWidth*1.5;
+			let Y = YS[i];
+			let Y0 = Y + fRulerOffset;
+			let W0 = W - MidWidth + FontWidth*1.5;
 			if(W0 > 6)
 			{
 				context.textAlign = 'center';
-				DrawGraph2TextBox(context, Duration,Center * fScaleX, Y + YSpace, 'center');
+				for(let t = 0; t < TextCount; ++t)
+					if(TextMid[t])
+						DrawGraph2TextBox(context, TextMid[t], Center * fScaleX, Y + YSpace + t * FontHeight, 'center');
 				W0 = W0 / 2.0;
-				var X0 = X + W0;
-				var X1 = X + W - W0;
+				let X0 = X + W0;
+				let X1 = X + W - W0;
 				context.strokeStyle = ColorFront;
 				context.beginPath();
 				context.moveTo(X, Y0);
@@ -5538,10 +5665,16 @@ function DrawGraph2Range(context, Params, Range, ColorBack, ColorFront, Name, Of
 			{
 				if(i == 1)
 				{
-					context.textAlign = 'right';
-					DrawGraph2TextBox(context, Duration, X - 3, Y0, 'right');
-					context.textAlign = 'left';
-					DrawGraph2TextBox(context, Duration, X + W + 2, Y0, 'left');
+					for(let t = 0; t < TextCount; ++t)
+					{
+						if(TextMid[t])
+						{
+							context.textAlign = 'right';
+							DrawGraph2TextBox(context, TextMid[t], X - 3, Y0+t * FontHeight, 'right');
+							context.textAlign = 'left';
+							DrawGraph2TextBox(context, TextMid[t], X + W + 2, Y0+t * FontHeight, 'left');
+						}
+					}
 				}
 				context.strokeStyle = ColorFront;
 				context.beginPath();
@@ -5551,8 +5684,9 @@ function DrawGraph2Range(context, Params, Range, ColorBack, ColorFront, Name, Of
 			}
 		}
 		context.textAlign = 'left';
-		DrawGraph2TextBox(context, (fEnd-Range.Off).toFixed(0), X + W + 2, TextPosY, 'left');
-		DrawGraph2TextBox(context, Name, X + W + 2, OffsetTop + YSpace + FontHeight, 'left');
+		for(let t = 0; t < TextCount; ++t)
+				if(TextRight[t])
+					DrawGraph2TextBox(context, TextRight[t], X + W + 2, TextPosY + t * FontHeight, 'left');
 	}
 	return Offset;
 }
@@ -6260,7 +6394,7 @@ function ReadCSVFile(Set, File)
 	};
 	Reader.onprogress = function(e)
 	{
-		var m = e.loaded + ":" + e.total + " :: " + e.lengthComputable;
+		let m = e.loaded + ":" + e.total + " :: " + e.lengthComputable;
 		console.log(m);
 	};
 	Set.PendingCount++;
