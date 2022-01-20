@@ -344,6 +344,7 @@ let gRange = 1;
 let gOffset = 0;
 let gRangeMaxLen = 1;
 let gGraphCSVInvalid = 1;
+let gRangeTooltipInvalid = 1;
 
 // CSV Data
 let CSVSets = {};
@@ -352,7 +353,6 @@ let CSVIndex = 0;
 let CSVMaxLength = 0;
 let CSVNumSets = 0;
 let CSVSetNames = [];
-let CSVActiveSet = 0;
 
 let gDrawFrame = 1;
 
@@ -869,6 +869,15 @@ function GraphCSVParameters(FullUpdate, View, LocalMouseX, LocalMouseY)
 	return Params;
 }
 
+function GetUseSetColors()
+{
+	let SetsEnabled = 0;
+	for(let set in CSVSets)
+		if(CSVSets[set].Enabled)
+			SetsEnabled++;
+	return SetsEnabled > 1;
+}
+
 function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouseY, SubIndex)
 {
 	ProfileEnter("DrawGraphCSV", 1);
@@ -913,9 +922,6 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 		}
 	}
 
-
-
-
 	Mouse.X = LocalMouseX;
 	Mouse.Y = LocalMouseY;
 
@@ -933,20 +939,13 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 				let seconds = Set.TimeData[Index];
 				Str += ": " + FormatSeconds(seconds);
 			}
-
 		}
 		return Str;
-
 	}
 
 
-
 	let y = 0;
-	let SetColors = 0;
-	for(let set in CSVSets)
-		SetColors++;
-	if(SetColors < 2)
-		SetColors = 0;
+	let SetColors = GetUseSetColors();
 
 
 	let SetHueBase = [0.04, 0.30, 0.56];
@@ -957,11 +956,12 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 	let MouseIndex = -1;
 	let SelectedGraphColumns;
 
-	let UpdateRangeTooltip = RangeValid(RangeSelect) && (RangeSelect.Begin != RangeSelectState.Begin || RangeSelect.End != RangeSelectState.End);
+	let UpdateRangeTooltip = RangeValid(RangeSelect) && ((RangeSelect.Begin != RangeSelectState.Begin || RangeSelect.End != RangeSelectState.End) || gRangeTooltipInvalid);
 	if(UpdateRangeTooltip)
 	{
 		RangeSelectState.Begin = RangeSelect.Begin;
 		RangeSelectState.End = RangeSelect.End;
+		gRangeTooltipInvalid = 0;
 	}
 
 	let InitToolTip = function()
@@ -1020,18 +1020,18 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 		if(UpdateRangeTooltip)
 			RangeToolTips[i] = InitToolTip();
 
+		let DrawIndex = 0;
 		for(let SetIndex = 0; SetIndex < CSVSetNames.length; ++SetIndex)
 		{
-			if(SetIndex == (CSVActiveSet-1) || CSVActiveSet == 0)
 			{
 				let SetName = CSVSetNames[SetIndex];
 				let Set = CSVSets[SetName];
-				if(!Set.Ready)
+				let DisplayName = Set.DisplayName ? Set.DisplayName : SetName;
+				if(!Set.Enabled || !Set.Ready)
 					continue;
 				let ColumnIndex = 0;
 				for(let ColumnName in GraphColumns)
 				{
-
 					if(GraphColumns[ColumnName] == 1 && Set.ColumnNames[ColumnName])
 					{
 						let ColumnPrc = (ColumnIndex % 5) / 4.0;
@@ -1062,6 +1062,11 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 								{
 									src.Color = color;
 								}
+								else
+								{
+									src.Color = src.BaseColor;
+								}
+								src.Name = DisplayName + ' / ' + ColumnName;
 								Data.push(src);
 							}
 						}
@@ -1094,7 +1099,7 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 	if(!FullUpdate)
 	{
 		let Offset = 0;
-		let UpdateRangeTooltip = false;
+		let UpdateRangeTooltip = 0;
 
 		if(RangeValid(RangeSelect))
 		{
@@ -1140,11 +1145,10 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 			ToolTipImmediate = InitToolTip();
 			for(let SetIndex = 0; SetIndex < CSVSetNames.length; ++SetIndex)
 			{
-				if(SetIndex == (CSVActiveSet-1) || CSVActiveSet == 0)
 				{
 					let SetName = CSVSetNames[SetIndex];
 					let Set = CSVSets[SetName];
-					if(!Set.Ready)
+					if(!Set.Enabled || !Set.Ready)
 						continue;
 					for(let ColumnName in SelectedGraphColumns)
 					{
@@ -1247,122 +1251,6 @@ function DrawRange(context, X, XEnd, Y, YEnd, ColorBack, ColorFront)
 }
 
 
-// function DrawHistory(View, LocalMouseX, LocalMouseY)
-// {
-// 	ProfileEnter("DrawHistory");
-// 	var Canvas = View.Canvas[View.BackBuffer];
-// 	var context = Canvas.getContext('2d');
-// 	context.clearRect(0, 0, View.w, View.h);
-// 	if(!FrameData.Time)
-// 		return;
-// 	var fHeight = View.h;
-// 	var fWidth = nWidth / FRAME_COUNT;
-// 	var fHeightScale = fHeight / ReferenceHistory;
-// 	var fX = 0;
-// 	var FrameIndex = -1;
-// 	var MouseDragging = 0;
-// 	var GreenTime = (Settings.TargetTime * 0.9);
-// 	var RedBegin = (Settings.TargetTime * 1.1);
-// 	var LerpDist = 1.0 / (RedBegin - GreenTime);
-// 	var id0 = -1;
-// 	var id1 = -1;
-
-// 	if(MouseDragActiveXEnd > MouseDragActiveXStart)
-// 	{
-// 		var idx0 = Math.ceil(FRAME_COUNT * MouseDragActiveXStart / nWidth);
-// 		var idx1 = Math.floor(FRAME_COUNT * MouseDragActiveXEnd / nWidth);
-// 		idx0 = Clamp(idx0, 0, FRAME_COUNT-1);
-// 		idx1 = Clamp(idx1, 0, FRAME_COUNT-1);
-// 		id0 = FrameData.Ids[idx0];
-// 		id1 = FrameData.Ids[idx1];
-// 	}
-
-
-// 	var ToolTipFrame = -1;
-// 	for(var i = 0; i < FRAME_COUNT; i++)
-// 	{
-// 		var fMs = FrameData.Time[i];
-// 		var fPrc = (fMs - GreenTime) * LerpDist;
-// 		fPrc = Clamp(fPrc, 0, 1);
-// 		var color = LerpColor(fPrc);
-// 		var fid = FrameData.Ids[i];
-// 		if(fid >= id0 && fid <= id1)
-// 		{
-// 			color = 'cyan';
-// 		}else if(FrameData.Frozen[i])
-// 		{
-// 			color = 'purple';
-// 		}
-
-
-// 		var fH = fHeightScale * fMs;
-// 		var bMouse = LocalMouseX > fX && LocalMouseX < fX + fWidth+1 && MouseY <= HistoryHeight;
-// 		if(bMouse && !MouseDragging)
-// 		{
-// 			context.fillStyle = FRAME_HISTORY_COLOR_GPU;
-// 			ToolTipFrame = i;
-// 		}
-// 		else
-// 		{
-// 			context.fillStyle = color;
-// 		}
-// 		context.fillRect(fX, fHeight - fH, fWidth-1, fH);
-// 		fX += fWidth;
-// 	}
-
-
-// 	DrawRange(context, MouseDragActiveXStart, MouseDragActiveXEnd, 0, HistoryHeight, '#59d0ff', '#00ddff');
-
-
-// 	var fH = fHeight - fHeightScale * Settings.TargetTime;
-// 	context.fillStyle = 'wheat';
-// 	context.strokeStyle = 'wheat';
-// 	context.beginPath();
-// 	context.moveTo(0, fH);
-// 	context.lineTo(nWidth, fH);
-// 	// context.closePath();
-// 	context.stroke();
-// 	var YText;
-// 	if(fH > HistoryHeight * 0.25)
-// 	{
-// 		YText = fH - FontAscent;
-// 	}
-// 	else
-// 	{
-// 		YText = fH + FontHeight;
-// 	}
-
-// 	context.fillText(Settings.TargetTime + 'ms', 3, YText);
-// 	context.textAlign='right';
-// 	context.fillText(FormatTime(ReferenceHistory) + 'ms', nWidth, FontHeight);
-// 	context.textAlign='left';
-
-
-
-// 	if(ToolTipFrame >= 0)
-// 	{
-// 		var fMs = FrameData.Time[ToolTipFrame];
-// 		var Frozen = FrameData.Frozen[ToolTipFrame];
-// 		ToolTipCallback = function()
-// 		{
-// 			var StringArray = [];
-// 			StringArray.push("Frame");
-// 			StringArray.push("" + ToolTipFrame);
-// 			StringArray.push("Time");
-// 			StringArray.push("" + fMs.toFixed(3));
-// 			if(Frozen)
-// 			{
-// 				StringArray.push("Frozen & Unreliable");
-// 				StringArray.push("");
-// 			}
-// 			return StringArray;
-// 		}
-// 	}
-
-
-// 	ProfileLeave();
-
-// }
 function MouseInRect(Rect)
 {
 	return MouseInside(Rect.x, Rect.y, Rect.w, Rect.h);
@@ -1704,14 +1592,9 @@ function DrawRootGraphMenuElement(context)
 			X += w + 10;
 
 
-
-
-
-
-
-			if(CSVNumSets > 1)
+			//if(CSVNumSets > 1)
 			{
-				let Text = "Set: " + (CSVActiveSet == 0 ? "All" : CSVSetNames[CSVActiveSet-1]);
+				let Text = "Set";
 				w = 10 + context.measureText(Text).width;
 				XCenter = X + w / 2;
 				Inside = MouseInside(X, Y, w, 4 + FontHeight) ;
@@ -1723,11 +1606,12 @@ function DrawRootGraphMenuElement(context)
 				context.fillText(Text, XCenter, Y + FontHeight);
 				context.textAlign = '';
 
-				if(Inside && MouseReleased)
+				if(Inside)
 				{
-					CSVActiveSet = (CSVActiveSet + 1) % (CSVNumSets+1);
-					gGraphCSVInvalid = 1;
-					RequestDraw();
+					GraphModeButtonX = X + 2;
+					GraphModeButtonY = Y + FontHeight + 2;
+					EnableMenu(SubMenuSets);
+
 				}
 			}
 
@@ -1804,7 +1688,8 @@ var SubMenuGraphSettingsKey = "";
 let SubMenuGraph = 11;
 
 let SubMenuGraphMode = 12;
-var SubMenuPresets2 = 13;
+let SubMenuPresets2 = 13;
+let SubMenuSets = 14;
 
 
 var SubMenuActive = -1;
@@ -3197,6 +3082,70 @@ function DrawMenuPresets2()
 	return SizeInfo;
 }
 
+
+function DrawMenuSets()
+{
+	let Selection = null;
+	let SizeInfo = {};
+	let Invalidate = 0;
+	let NumSets = 0;
+	let Strings = ["Enable all", "Disable all", "***"];
+	for(let Name in CSVSets)
+	{
+		NumSets++;
+		Strings.push(CSVSets[Name].DisplayName);
+	}
+	let wLeft = MeasureArray(0, Strings);
+	let Width = wLeft + 10;
+	SizeInfo.h = Strings.length * BoxHeight;
+	SizeInfo.w = Width;
+	SizeInfo.x = GraphModeButtonX;
+	SizeInfo.y = GraphModeButtonY;
+
+	let M = CreateMenuState(SizeInfo);
+	let context = CanvasDetailedView.getContext('2d');
+	context.fillRect(M.x, M.y, Width, SizeInfo.h);
+
+
+	if(DrawMenuElement(M, false, "Enable All", "", 'white'))
+	{
+		for(let Name in CSVSets)
+		{
+			CSVSets[Name].Enabled = true;
+			Invalidate = 1;
+		}	
+	}
+	if(DrawMenuElement(M, false, "Disable All", "", 'white'))
+	{
+		for(let Name in CSVSets)
+		{
+			CSVSets[Name].Enabled = false;
+			Invalidate = 1;
+		}	
+	}
+	DrawMenuElement(M, false, "***", "", 'white');
+
+	for(let i = 0; i < CSVSetNames.length; ++i)
+	{
+		let Name = CSVSetNames[i];
+		let Set = CSVSets[Name];
+		if(DrawMenuElement(M, Set.Enabled, Set.DisplayName, "", 'white'))
+		{
+			Set.Enabled = !Set.Enabled;
+			Invalidate = 1;
+		}
+	}
+	if(Invalidate)
+	{
+		gGraphCSVInvalid = 1;
+		gRangeTooltipInvalid = 1;
+		RequestDraw();
+
+	}
+	SizeInfo.h = M.y - SizeInfo.y;
+	return SizeInfo;
+}
+
 function Dots()
 {
 	let t = new Date().getMilliseconds() / 200;
@@ -4504,6 +4453,10 @@ function DrawMenu()
 		{
 			MenuRect = DrawMenuPresets2();
 		}
+		else if(SubMenuActive == SubMenuSets)
+		{
+			MenuRect = DrawMenuSets();
+		}
 		if(SubMenuActive != SubMenuGraph)
 		{
 			MouseInGraphButton = -1;
@@ -4555,16 +4508,16 @@ function HasVideoTrack()
 	{
 		let Name = CSVSetNames[i];
 		let Set = CSVSets[Name];
-		if(Set.VideoValid)
+		if(Set.Enabled && Set.VideoValid)
 		{
 			return true;
 		}
 	}
 }
-function GetTimeFromIndex(Name, Index)
+function GetTimeFromIndex(Name, Index, VideoOnly)
 {
 	let Set = CSVSets[Name];
-	if(Set.VideoValid && Set.TimeData && Set.TimeData.length > Index)
+	if((!VideoOnly || Set.VideoValid) && Set.TimeData && Set.TimeData.length > Index)
 	{
 		return Set.TimeData[Index];
 	}
@@ -4577,7 +4530,7 @@ function GetTimeFromIndexArray(Index)
 	for(let Name in CSVSets)
 	{
 		let Set = CSVSets[Name];
-		if(Set.VideoValid && Set.TimeData && Set.TimeData.length > Index)
+		if(Set.TimeData && Set.TimeData.length > Index)
 		{
 			out.push(Set.TimeData[Index]);
 		}
@@ -4603,16 +4556,17 @@ function DrawVideo()
 	let ForceRedraw = false;
 	let context = CanvasDetailedView.getContext('2d');
 	let Videos = [];
+	let Names = [];
 	let w = [];
 	let h = [];
 	let total = 0;
 	const DrawHeight = VideoTrackHeight;
 	for(let i = 0; i < CSVSetNames.length; ++i)
 	{
-		if(i == (CSVActiveSet-1) || CSVActiveSet == 0)
+		let Name = CSVSetNames[i];
+		let Set = CSVSets[Name];
+		if(Set.Enabled)
 		{
-			let Name = CSVSetNames[i];
-			let Set = CSVSets[Name];
 			if(Set.VideoValid)
 			{
 				let v = Set.Video;
@@ -4629,7 +4583,7 @@ function DrawVideo()
 					let time = gMouseXPrc * endtime;
 					if(AllowTime)
 					{
-						let RealTime = GetTimeFromIndex(Name, gMouseIndex);
+						let RealTime = GetTimeFromIndex(Name, gMouseIndex, 1);
 						if(RealTime != null && RealTime >= 0)
 						{
 							time = RealTime;
@@ -4648,6 +4602,7 @@ function DrawVideo()
 					let DrawWidth = DrawHeight * width / height;
 					total += DrawWidth + 1;
 					Videos.push(v);
+					Names.push(Set.DisplayName);
 					w.push(DrawWidth);
 					h.push(DrawHeight);
 					if(v.seeking)
@@ -4681,7 +4636,17 @@ function DrawVideo()
 	for(let i = 0; i < Videos.length; ++i)
 	{
 		let v = Videos[i];
-		context.drawImage(v, DrawPosX, DrawPosY, VideoScale * w[i], VideoScale * h[i]);
+		let width = VideoScale * w[i];
+		let height = VideoScale * h[i];
+		context.drawImage(v, DrawPosX, DrawPosY, width, height);
+
+		let text_y = DrawPosY + height;
+		let text_x = DrawPosX + width / 2;
+		context.fillStyle = nBackColors[0];
+		context.fillStyle = 'white';
+		context.textAlign = 'center';
+		context.fillText(Names[i], text_x, text_y - FontHeight);
+
 		DrawPosX += VideoScale * w[i] + 1;
 	}
 }
@@ -5181,13 +5146,6 @@ function KeyUp(evt)
 		{
 			ProfileMode = !ProfileMode;
 		}
-		if(k == 32)
-		{
-			CSVActiveSet = (CSVActiveSet + 1) % (CSVNumSets+1);
-			gGraphCSVInvalid = 1;
-			RangeInvalidate(RangeSelectState);
-
-		}
 	}
 	if(k >= 49 && k < 49 + MAX_GRAPHS)
 	{
@@ -5658,6 +5616,7 @@ function CreateGraph2Data(Samples, Name, Color, Mode, Samples2)
 	gd.Max = max;
 	gd.Name = Name;
 	gd.Color = Color;
+	gd.BaseColor = Color;
 	gd.Mode = Mode;
 	return gd;
 }
@@ -6214,6 +6173,7 @@ function CreateCSVSet()
 	Set.FinishedCount = 0;
 	Set.TimeData = null;
 	Set.Ready = false;
+	Set.Enabled = true;
 	return Set;
 }
 function EnlargeArray(a, size)
@@ -6386,6 +6346,7 @@ function ParseCSVCheckFinished(Name)
 				if(GraphIndex >= MAX_GRAPHS)
 					break;
 			}
+			Set.DisplayName = prompt("Enter name for file set");
 			Set.Ready = true;
 			gGraphCSVInvalid = 1;
 			RangeInvalidate(RangeSelectState);
