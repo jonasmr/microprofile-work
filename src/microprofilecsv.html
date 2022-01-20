@@ -381,7 +381,7 @@ let GraphModeButtonY = 0;
 let RangeSelect = RangeInit();
 let RangeSelectState = RangeInit();
 
-let RangeToolTipColumns = 4;
+let RangeToolTipColumns = 5;
 let RangeToolTips = new Array(MAX_GRAPHS);
 
 
@@ -975,15 +975,17 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 		a.push("Average");
 		a.push("Min");
 		a.push("Max");
+		a.push("Sum(avg)");
 		return tt;
 	};
-	let ToolTipAdd = function(tt, Name, Color, Avg, Min, Max)
+	let ToolTipAdd = function(tt, Name, Color, Avg, Min, Max, Sum)
 	{
 		tt.c[tt.a.length] = Color;
 		tt.a.push(Name);
 		tt.a.push(FormatNumber(Avg, Params.Digits));
 		tt.a.push(FormatNumber(Min, Params.Digits));
 		tt.a.push(FormatNumber(Max, Params.Digits));
+		tt.a.push(FormatNumber(Sum, Params.Digits));
 
 
 	};
@@ -1005,7 +1007,7 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 			Sum += AvgSamples[i];
 		}
 		let Avg = Sum / (End - Begin);
-		ToolTipAdd(tt, Name, Color, Avg, Min, Max);
+		ToolTipAdd(tt, Name, Color, Avg, Min, Max, Sum);
 	};
 
 	let ttt = 0;
@@ -1141,7 +1143,7 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 		if(MouseIndex >= 0)
 		{
 
-			ToolTipImmediateColumns = 4;
+			ToolTipImmediateColumns = 5;
 			ToolTipImmediate = InitToolTip();
 			for(let SetIndex = 0; SetIndex < CSVSetNames.length; ++SetIndex)
 			{
@@ -1154,7 +1156,7 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 					{
 						if(SelectedGraphColumns[ColumnName] == 1 && Set.ColumnNames[ColumnName])
 						{
-							ToolTipAdd(ToolTipImmediate, ColumnName,  Set.GraphDataAvg[ColumnName].Color, Set.GraphDataAvg[ColumnName].Samples[MouseIndex], Set.GraphDataMin[ColumnName].Samples[MouseIndex], Set.GraphDataMax[ColumnName].Samples[MouseIndex]);
+							ToolTipAdd(ToolTipImmediate, ColumnName,  Set.GraphDataAvg[ColumnName].Color, Set.GraphDataAvg[ColumnName].Samples[MouseIndex], Set.GraphDataMin[ColumnName].Samples[MouseIndex], Set.GraphDataMax[ColumnName].Samples[MouseIndex], 0);
 						}
 					}
 				}
@@ -6585,7 +6587,7 @@ function DropHandler(ev)
 		{
 			CsvCount++;
 		}
-		else if(Ext.toLowerCase() == ".mp4")
+		else if(Ext.toLowerCase() == ".mp4" || Ext.toLowerCase() == ".webm")
 		{
 			Mp4Count++;
 		}
@@ -6613,7 +6615,7 @@ function DropHandler(ev)
 			{
 				ReadCSVFile(Set, File);
 			}
-			else if(Ext.toLowerCase() == ".mp4")
+			else if(Ext.toLowerCase() == ".mp4" || Ext.toLowerCase() == ".webm")
 			{
 				if(!Set.Video)
 				{
