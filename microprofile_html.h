@@ -9048,8 +9048,6 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "  		const label = popupFields.querySelectorAll(\"label\")[index].textContent;\n"
 "  		values[index] = input.value;\n"
 "	});\n"
-"	console.log(\"Values \"+ values);\n"
-"	alert(\"VALUES \"+ values);\n"
 "	popupCallback(values);\n"
 "	popupCallback = null;\n"
 "	popupOverlay.style.display = \"none\";\n"
@@ -9255,7 +9253,6 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "const MSG_FUNCTION_NAMES = 10;\n"
 "const MSG_INSTRUMENT_ERROR = 11;\n"
 "const MSG_QUERY_INDEX = 12;\n"
-"// var MSG_MODULE_NAME = 12;\n"
 "\n"
 "\n"
 "const TYPE_NONE = 0;\n"
@@ -10222,16 +10219,16 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	let R = 0;\n"
 "	let X = 0;\n"
 "\n"
-"	let OffsetY = BoxH";
-
-const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
-const char g_MicroProfileHtmlLive_begin_1[] =
-"eight;\n"
+"	let OffsetY = BoxHeight;\n"
 "\n"
 "\n"
 "	context.clearRect(0, 0, View.w, View.h);\n"
 "	context.fillStyle = \'white\';\n"
-"	context.font = Font;\n"
+"	context";
+
+const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
+const char g_MicroProfileHtmlLive_begin_1[] =
+".font = Font;\n"
 "\n"
 "\n"
 "	function HeaderMouseHandle(XBegin, X, Y, Header)\n"
@@ -11536,14 +11533,14 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	}\n"
 "\n"
 "\n"
-"	DrawRange(context, MouseDragActiveXSt";
+"	DrawRange(context, MouseDragActiveXStart, MouseDragActiveXEnd, 0, HistoryHeight, \'#59d0ff\', \'#00ddff\');\n"
+"\n"
+"\n"
+"	var fH = fHeight - ";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-"art, MouseDragActiveXEnd, 0, HistoryHeight, \'#59d0ff\', \'#00ddff\');\n"
-"\n"
-"\n"
-"	var fH = fHeight - fHeightScale * Settings.TargetTime;\n"
+"fHeightScale * Settings.TargetTime;\n"
 "	context.fillStyle = \'wheat\';\n"
 "	context.strokeStyle = \'wheat\';\n"
 "	context.beginPath();\n"
@@ -13019,14 +13016,14 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[M.cidx];\n"
 "	context.fillStyle = bgcolor;\n"
 "	context.fillRect(M.x-2, M.y, M.w+4, BoxHeight);\n"
-"	context.fillStyle = \'white";
+"	context.fillStyle = \'white\';\n"
+"	context.fillText(Name, M.x, YText);\n"
+"	context.textAlign = \'right\';\n"
+"	var XTemp = M.x + ";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"\';\n"
-"	context.fillText(Name, M.x, YText);\n"
-"	context.textAlign = \'right\';\n"
-"	var XTemp = M.x + M.w - 3;\n"
+"M.w - 3;\n"
 "\n"
 "	if(KeyShiftDown && bMouseIn)\n"
 "	{\n"
@@ -14330,13 +14327,13 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "				FF[i].c = \"hsl(\" + cidx + \",50%, 70%)\";\n"
 "				FF[i].rgb = ConvertHslToRGB(cidx/ 360, 0.5, 0.7);\n"
 "				var cidxModule = StringColor(ModuleName);\n"
-"				FF[i].cm = \"hsl(\" + cidxMod";
+"				FF[i].cm = \"hsl(\" + cidxModule + \",50%, 70%)\";\n"
+"				FF[i].rgbm = ConvertHslToRGB(cidxModule/ 360, 0.5, 0.7);\n"
+"				Colo";
 
 const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
 const char g_MicroProfileHtmlLive_begin_4[] =
-"ule + \",50%, 70%)\";\n"
-"				FF[i].rgbm = ConvertHslToRGB(cidxModule/ 360, 0.5, 0.7);\n"
-"				Color = FF[i].c;\n"
+"r = FF[i].c;\n"
 "				ColorModule = FF[i].cm;\n"
 "			}\n"
 "			var UseAlt = 0;\n"
@@ -15740,16 +15737,16 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "	var Obj = JSON.parse(event.data);\n"
 "	WSReceive++;\n"
 "	WSReceiveBytes += event.data.length;\n"
-"	va";
-
-const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
-const char g_MicroProfileHtmlLive_begin_5[] =
-"r k = Obj.k;\n"
+"	var k = Obj.k;\n"
 "	if(k == MSG_TIMER_TREE)\n"
 "	{\n"
 "		AddTimer(Obj.v);\n"
 "	}\n"
-"	else if(k == MSG_ENABLED)\n"
+"	else if(k == MSG_ENABLED)";
+
+const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
+const char g_MicroProfileHtmlLive_begin_5[] =
+"\n"
 "	{\n"
 "		EnableTimer(Obj.v);\n"
 "	}\n"

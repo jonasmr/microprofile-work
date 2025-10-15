@@ -188,8 +188,6 @@ function popupOk()
   		const label = popupFields.querySelectorAll("label")[index].textContent;
   		values[index] = input.value;
 	});
-	console.log("Values "+ values);
-	alert("VALUES "+ values);
 	popupCallback(values);
 	popupCallback = null;
 	popupOverlay.style.display = "none";
