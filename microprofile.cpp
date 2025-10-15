@@ -12056,7 +12056,8 @@ bool MicroProfileSymbolIgnoreSymbol(const char* pName)
 #ifdef _WIN32
 	if(pName[0] == '_' && pName[1] == '_')
 		return true;
-	if(strstr(pName, "__security_check_cookie") || strstr(pName, "_RTC_CheckStackVars") || strstr(pName, "__chkstk") || strstr(pName, "std::_Atomic"))
+	if(strstr(pName, "__security_check_cookie") || strstr(pName, "_RTC_CheckStackVars") || strstr(pName, "__chkstk") || strstr(pName, "std::_Atomic") || strstr(pName, "_Init_thread_header") ||
+	   strstr(pName, "_Init_thread_footer"))
 	{
 		return true;
 	}
