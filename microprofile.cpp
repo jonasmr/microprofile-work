@@ -8207,11 +8207,12 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	}
 	else
 	{
+#if MICROPROFILE_DYNAMIC_INSTRUMENT
 		MicroProfileWSPrintStart(Connection);
 		MicroProfileWSPrintf("{\"k\":\"%d\",\"qp\":%d}", MSG_QUERY_INDEX, S.nQueryProcessed);
 		MicroProfileWSFlush();
 		MicroProfileWSPrintEnd();
-
+#endif
 		if(S.pJsonSettings)
 		{
 			MicroProfileWSPrintStart(Connection);
