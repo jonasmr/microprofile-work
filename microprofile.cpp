@@ -4861,6 +4861,16 @@ void MicroProfileToggleGroup(uint32_t nGroup)
 		S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
 	}
 }
+void MicroProfileGroupSetEnabled(uint32_t nGroup)
+{
+	if(nGroup < S.nGroupCount)
+	{
+		uint32_t nIndex = nGroup / 32;
+		uint32_t nBit = nGroup % 32;
+		S.nActiveGroupsWanted[nIndex] |= (1ll << nBit);
+		S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
+	}
+}
 bool MicroProfileGroupEnabled(uint32_t nGroup)
 {
 	if(nGroup < S.nGroupCount)
@@ -11575,7 +11585,7 @@ bool MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, co
 		uint16_t nGroup = MicroProfileGetGroupIndex(Tok);
 		if(!MicroProfileGroupActive(nGroup))
 		{
-			MicroProfileToggleGroup(nGroup);
+			MicroProfileGroupSetEnabled(nGroup);
 		}
 #if MICROPROFILE_WEBSERVER
 		MicroProfileWebSocketToggleTimer(MicroProfileGetTimerIndex(Tok));
